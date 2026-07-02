@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — security hardening & real E2E
+
+- Real API-key authentication: keys are HMAC-hashed, resolved against the repository on every request (`Authorization: Bearer` and `X-API-Key`), revocation is immediate, and per-key scopes (e.g. `events:write`) are enforced on ingestion.
+- Production safety: demo credentials and anonymous access are rejected outside development, and the API refuses to boot in production with the development pepper or DEBUG enabled.
+- Security headers on every response (nosniff, frame deny, referrer policy, permissions policy) and a CSP on the `/demo` console; CORS now allowlists the `X-API-Key` header (fixes browser "Failed to fetch" against the persistent backend).
+- Non-root users in both Docker images; CI security job now runs `pip-audit`, `bandit`, and `npm audit` instead of a placeholder.
+- Real OpenAI-compatible variant generation: the generator provider now calls chat/completions, parses structured variants, and records model + token usage in prompt lineage (mock provider remains the default).
+- First verified Next.js production build; fixed Next 15 async `params` in the three dynamic routes and a demo-fallback type mismatch that broke the build.
+- Playwright E2E suite (7 journeys) running against the production web build and a live Postgres-backed API; `make e2e`. README screenshots are captured by the suite from the running product.
+
 ## v0.1.0 "Prompt to Profit" — 2026-07-02
 
 - Enabled the SQLAlchemy repository backend as the documented Docker profile: compose now sets `RESOURCE_REPOSITORY_BACKEND=sqlalchemy` and runs `alembic upgrade head` on API boot, so data persists across restarts (`docker compose down -v` resets).

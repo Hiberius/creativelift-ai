@@ -160,6 +160,7 @@ class DemoStore:
         self.audit_logs: list[AuditLogRead] = []
         self.event_quality_snapshots: list[EventQualitySnapshotRead] = []
         self.api_keys: dict[UUID, ApiKeyRead] = {}
+        self.api_key_hashes: dict[str, UUID] = {}
         self.bandits: dict[UUID, dict] = {}
         self.runs: dict[UUID, RunRead] = {}
 
@@ -177,7 +178,7 @@ class DemoStore:
         )
 
     def create_api_key(self, name: str, scopes: list[str]) -> ApiKeyRead:
-        raw, prefix, _hashed = generate_api_key()
+        raw, prefix, hashed = generate_api_key()
         api_key = ApiKeyRead(
             id=uuid4(),
             organization_id=DEMO_ORG_ID,
@@ -188,6 +189,7 @@ class DemoStore:
             created_at=datetime.now(UTC),
         )
         self.api_keys[api_key.id] = api_key
+        self.api_key_hashes[hashed] = api_key.id
         self.audit("api_key.created", "api_key", str(api_key.id), prefix=prefix)
         return api_key
 

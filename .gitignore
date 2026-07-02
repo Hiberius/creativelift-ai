@@ -37,3 +37,7 @@ next-env.d.ts
 
 # Local AI tooling config
 .codex/
+
+# Playwright artifacts
+apps/web/test-results/
+apps/web/playwright-report/

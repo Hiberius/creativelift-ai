@@ -12,5 +12,8 @@ COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./
 
+RUN useradd --system --no-create-home --uid 10001 creativelift
+USER creativelift
+
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -2,195 +2,120 @@
 
 **From prompt to profit: measure which AI creatives actually lift revenue.**
 
-CreativeLift AI is the open-source AI marketing measurement platform that tracks every creative from brief and prompt through approval, experiment assignment, event ingestion, causal lift, and revenue impact.
+[![CI](https://github.com/Hiberius/creativelift-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/Hiberius/creativelift-ai/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](apps/api/pyproject.toml)
+[![Next.js 15](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](apps/web/package.json)
+[![Tests](https://img.shields.io/badge/tests-103_unit_·_7_E2E-brightgreen)](#verified-not-just-promised)
 
-## Why This Exists
+AI made content infinite. Measurement became the bottleneck. Your team can generate 50 ad variants in an hour — but platform ROAS can't tell you which one creates **incremental revenue**. CreativeLift AI is a self-hostable measurement OS that tracks every AI-generated creative from **brief → prompt → approval → experiment → events → causal lift → decision**.
 
-AI made content infinite. Measurement became the bottleneck. Creative teams can generate endless ads, emails, landing pages, hooks, and offers, but most stacks still cannot answer which generated asset created incremental business impact.
+![CreativeLift AI dashboard](docs/screenshots/02-dashboard.png)
 
-CreativeLift AI is not another AI copywriter. It is a self-hostable measurement operating system for AI-generated marketing.
+## What it does
+
+- **Creative Treatments** — every variant becomes a versioned, measurable unit: prompt lineage, hook, CTA, offer, compliance status, spend, revenue, lift.
+- **Governance before spend** — approval queue with brand guardrails; experiments refuse to launch if approved claims lack evidence.
+- **Real experiments, real statistics** — deterministic assignment, lift with confidence intervals, p-values, SRM (broken-randomization) checks, CUPED variance reduction, and a plain-language recommendation: promote, retire, or keep collecting.
+- **Event ingestion that survives restarts** — idempotent API/SDK ingestion into Postgres, with event-quality snapshots you can trend over time.
+- **AI generation with lineage** — plug any OpenAI-compatible endpoint; every generated variant records model, prompt, and token usage. A deterministic mock provider keeps the quickstart free.
+
+![Experiment results with lift, p-value, SRM and a decision](docs/screenshots/05-experiment-results.png)
 
 ## Quickstart
 
-Lightweight verification without installing frontend dependencies or starting Docker:
-
-```bash
-python3 -m pytest
-npm --workspace apps/web run test
-python3 -m compileall -q apps/api services connectors packages/sdk-python
-```
-
-Optional full local runtime:
+The persistent profile (Postgres, migrations on boot):
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Open:
+Open http://localhost:3000 (dashboard) and http://localhost:8000/docs (API). Click **Run demo** on the dashboard to seed a fully measured experiment — 224 events, computed lift, a decision — then restart the stack and watch the data survive.
 
-- Web app: http://localhost:3000
-- API docs: http://localhost:8000/docs
-- Health: http://localhost:8000/healthz
+No Docker? The zero-dependency lab runs entirely in memory:
 
-## Core Concept: Creative Treatment
-
-A Creative Treatment is the versioned unit of measurement. It connects:
-
-brief -> prompt -> generated creative -> approval -> experiment -> exposure -> conversion -> revenue -> decision
-
-Treatments store audience, objective, channel, angle, hook, CTA, offer, copy, media metadata, model/provider, prompt lineage, brand guardrails, approved claims, human edits, compliance status, spend, revenue, lift estimates, and recommendation.
-
-## How It Works
-
-CreativeLift AI follows one loop:
-
-```text
-brand pack -> brief -> prompt run -> generated variant -> creative treatment -> approval -> experiment -> events -> lift result -> decision
+```bash
+python3 -m pytest          # 103 tests, no database needed
+cd apps/api && python3 -m uvicorn app.main:app   # then open http://localhost:8000/demo
 ```
 
-In practice:
+## The loop
 
-1. Create a brand pack with voice, guardrails, and claims.
-2. Create a brief with objective, audience, channel, and KPI.
-3. Generate or import creative variants.
-4. Save each variant as a Creative Treatment.
-5. Approve or reject treatments before launch.
-6. Create an experiment with allocation and decision rules.
-7. Ingest impressions, clicks, conversions, and revenue.
-8. Compute lift, SRM, confidence, and recommendation.
-9. Promote, retire, or iterate the creative.
+```text
+brand pack → brief → AI variants → creative treatment → approval (claims need evidence)
+   → experiment → event ingestion → lift + SRM + confidence → promote / retire
+```
 
-Read [docs/how-it-works.md](docs/how-it-works.md) for the product flow and [docs/software-structure.md](docs/software-structure.md) for the engineering map.
-Read [docs/implementation-status.md](docs/implementation-status.md) for the honest current state.
+| | |
+|---|---|
+| ![Approvals queue](docs/screenshots/03-approvals.png) | ![Event quality](docs/screenshots/06-events-health.png) |
+| Governance: review every treatment before it spends | Ingestion health with persisted quality trend |
+
+Track events from your site or server in a few lines:
+
+```bash
+curl -X POST http://localhost:8000/v1/events/ingest \
+  -H "Authorization: Bearer <your-api-key>" \
+  -H "Idempotency-Key: evt_001" \
+  -H "Content-Type: application/json" \
+  -d '{"events": [{"event_name": "purchase", "timestamp": "2026-07-02T10:00:00Z",
+       "anonymous_id": "anon_123", "creative_treatment_id": "<treatment-id>",
+       "experiment_id": "<experiment-id>", "variant_id": "treatment",
+       "value": 149.0, "currency": "USD"}]}'
+```
+
+Python and TypeScript SDKs live in [packages/](packages/), browser/server tracking examples in [examples/sdk-tracking/](examples/sdk-tracking/).
+
+## Security by default
+
+- API keys are stored **HMAC-SHA256 hashed** (peppered) and resolved against the database — the raw key is shown exactly once.
+- **Scoped keys** (`events:write`, `measurement:read`, …) enforced per endpoint; revocation is immediate.
+- **Production guards**: the API refuses to boot in production with development credentials, and demo fallbacks are disabled outside development.
+- Security headers on every response, CSP on the demo console, strict CORS, request-size limits, per-key rate limiting.
+- **Non-root containers**, and CI runs `pip-audit`, `bandit`, and `npm audit` on every push.
+
+## Verified, not just promised
+
+| Check | What actually runs |
+|---|---|
+| `python3 -m pytest` | 103 tests: API workflows, both storage backends, auth, idempotency, statistics |
+| `make test-sqlalchemy` | The SQLAlchemy backend exercised on SQLite: parity, tenancy, hashing |
+| `make migration-smoke` | Alembic upgrade → downgrade → re-upgrade against a disposable Postgres |
+| `make e2e` | 7 Playwright journeys against the production build and a live Postgres-backed API |
+| `docker compose restart api` | Ingested events, snapshots, and audit logs survive — persistence is real |
+
+Every screenshot in this README was captured by the E2E suite from the running product.
 
 ## Architecture
 
 ```text
-apps/web                  Next.js marketing site and dashboard
-apps/api                  FastAPI REST API, auth-ready services, DB models
-services/experiment-engine Statistical engine: lift, SRM, CUPED
-services/bandit-service   Thompson Sampling scaffold
-services/uplift-service   Uplift modeling scaffold
-services/mmm-service      MMM run scaffold
-connectors/*              Warehouse, analytics, CRM, ad platform adapters
-packages/schemas          Shared contracts
-infra/*                   Docker, Terraform, Kubernetes scaffolds
-docs/*                    Product, security, methodology, self-hosting docs
+apps/web                   Next.js 15 dashboard (dark, fast, no template feel)
+apps/api                   FastAPI · repository boundary with two backends:
+                           in-memory (zero-dep quickstart) and SQLAlchemy/Postgres
+services/experiment-engine Lift, SRM, CUPED statistics
+services/bandit-service    Thompson Sampling
+services/uplift-service    Segment-level uplift baseline
+services/mmm-service       Media-mix modeling scaffold
+connectors/*               7 adapters (Google Ads, Meta, PostHog, HubSpot, Snowplow, Rudder, webhook)
+packages/*                 Shared schemas + Python/TS SDKs
 ```
 
-## Documentation Map
-
-- [How It Works](docs/how-it-works.md)
-- [MVP Workflows](docs/mvp-workflows.md)
-- [Screen To API Map](docs/screen-api-map.md)
-- [Implementation Status](docs/implementation-status.md)
-- [Data Model Map](docs/data-model-map.md)
-- [Persistence Plan](docs/persistence-plan.md)
-- [Software Structure](docs/software-structure.md)
-- [Operating Model](docs/operating-model.md)
-- [Architecture](docs/architecture.md)
-- [Creative Treatment Model](docs/creative-treatment-model.md)
-- [Measurement Methodology](docs/measurement-methodology.md)
-- [Event Ingestion](docs/event-ingestion.md)
-- [API Reference](docs/api-reference.md)
-
-Tracking examples live in [examples/sdk-tracking](examples/sdk-tracking).
-
-## Event Ingestion Example
-
-```bash
-curl -X POST http://localhost:8000/v1/events/ingest \
-  -H "X-API-Key: dev-api-key" \
-  -H "Idempotency-Key: evt_demo_001" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "events": [{
-      "event_name": "purchase",
-      "timestamp": "2026-06-28T10:00:00Z",
-      "anonymous_id": "anon_123",
-      "creative_treatment_id": "00000000-0000-0000-0000-000000000101",
-      "experiment_id": "00000000-0000-0000-0000-000000000201",
-      "variant_id": "variant_a",
-      "channel": "paid_social",
-      "placement": "meta_feed",
-      "value": 149.00,
-      "currency": "USD",
-      "properties": {"order_id": "ord_123"}
-    }]
-  }'
-```
-
-## Local Development
-
-Backend:
-
-```bash
-cd apps/api
-make dev
-make test
-make lint
-```
-
-Frontend:
-
-```bash
-cd apps/web
-npm install
-npm run dev
-npm run build
-npm run lint
-```
-
-Root:
-
-```bash
-make setup
-make dev
-make test
-make lint
-```
-
-## What Is Implemented in v0.1.0
-
-- FastAPI app with versioned `/v1` routes, health/readiness, request IDs, API errors, auth/RBAC scaffolds.
-- SQLAlchemy models and Alembic migration for the core multi-tenant schema.
-- Event ingestion API contract with validation, idempotency shape, API key resolution, rate-limit hooks, event health, and in-memory result aggregation.
-- Creative registry, experiment registry with launch validation, approvals, claim evidence, API keys, audit logs, generator endpoints.
-- API-backed app screens for onboarding, settings, briefs, generation, Creative Treatments, approvals, experiments, results and insights, events, connectors, dashboard summary/approval/ingestion/lineage, and API keys.
-- Repository boundary for modular resources, with an in-memory implementation and tests.
-- Measurement engine for event-derived conversion lift, z-test, confidence intervals, SRM, CUPED, and recommendations.
-- Thompson Sampling bandit service scaffold.
-- Uplift and MMM service scaffolds with explicit future adapters.
-- Next.js marketing site and app dashboard routes with API clients and declared demo fallbacks.
-- Connector framework scaffolds for PostHog, Rudder, Snowplow, Google Ads, Meta Ads, HubSpot, and generic webhooks.
-- Docker Compose, CI, docs, issue templates, and open-source community files.
-
-## Honest Scaffold Areas
-
-Live ad platform sync, warehouse exports, production auth providers, RLS enforcement policies, ClickHouse ingestion, PyMC-Marketing, Meridian, Robyn, EconML, and CausalML integrations are scaffolded for extension and documented as future work.
+Deep dives: [How it works](docs/how-it-works.md) · [Measurement methodology](docs/measurement-methodology.md) · [Self-hosting](docs/self-hosting.md) · [Honest implementation status](docs/implementation-status.md) · [API reference](docs/api-reference.md)
 
 ## Roadmap
 
-1. Replace in-memory demo stores with Postgres repositories route by route.
-2. Production auth provider and SSO.
-3. Postgres RLS policy migration.
-4. ClickHouse-backed event store.
-5. Warehouse-native exports.
-6. Live PostHog/Rudder/Snowplow sync.
-7. Google Ads and Meta Ads metadata sync.
-8. Sequential testing implementation.
-9. Contextual bandits.
-10. MMM calibration with experiment priors.
+- **v0.2** — live connector sync (PostHog, GA, ad platforms), ClickHouse event store, connector UI
+- **v0.3** — contextual bandits, MMM calibration, warehouse-native exports
+
+The [implementation status](docs/implementation-status.md) page says plainly what is working, what is demo, and what is scaffold — we'd rather under-promise.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/contributing.md](docs/contributing.md).
+Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Good first areas: a live connector, sequential testing, dashboard polish.
 
-## Security
+## Credits
 
-Never commit secrets. API keys are hashed, only prefixes are stored for display, and tenant isolation is a first-class design constraint. See [SECURITY.md](SECURITY.md).
+Built end-to-end with **Claude Fable 5** and the latest **OpenAI Codex** — including the statistics engine, the security hardening, this README, and the E2E suite that screenshotted itself.
 
-## License
-
-Apache-2.0
+Licensed under [Apache 2.0](LICENSE).

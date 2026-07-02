@@ -44,13 +44,14 @@ export function ConnectorsManager() {
     void loadConnectors();
   }, []);
 
-  const displayItems = items.length > 0 ? items : fallbackConnectors.map((item) => ({
+  const displayItems: Connector[] = items.length > 0 ? items : fallbackConnectors.map((item) => ({
     id: item.name,
     organization_id: "demo",
     provider: item.name.toLowerCase().replaceAll(" ", "_"),
     display_name: item.name,
     status: item.status.toLowerCase(),
-    config: { events: item.events, lag: item.lag }
+    config: { events: item.events, lag: item.lag },
+    last_sync_at: null
   }));
 
   return (

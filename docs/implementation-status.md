@@ -64,6 +64,11 @@ This is the honest current state of the MVP.
 - Docker Compose runs the persistent profile: `RESOURCE_REPOSITORY_BACKEND=sqlalchemy` plus `alembic upgrade head` on API boot.
 - `/readyz` performs a real database ping under the sqlalchemy profile (503 when unreachable).
 - Approval risk and lineage dashboard panels already read from repository-backed routes (`/v1/creative-treatments`, `/v1/audit-logs`); no demo-only aggregation remains on those paths.
+- API keys authenticate against the repository via HMAC hash lookup on both auth schemes; scopes are enforced on ingestion; revocation is immediate.
+- Production mode rejects anonymous/demo credentials and refuses to boot with development secrets.
+- Security headers middleware and demo-console CSP are active on every response.
+- The OpenAI-compatible generator provider performs real chat/completions calls with structured-variant parsing and lineage capture (mock stays the default).
+- The Next.js production build compiles (Next 15 async params fixed) and 7 Playwright E2E journeys pass against the production build plus a live Postgres-backed API (`make e2e`).
 
 Current lightweight verification:
 
@@ -92,7 +97,7 @@ make migration-smoke  # Alembic roundtrip on disposable Postgres
 ## Scaffolded
 
 - Postgres-backed production hardening (RLS, pooling, backups) beyond the tested repository layer.
-- Production auth provider.
+- OIDC/SSO user login (API-key auth is real; human login is still the demo principal).
 - Postgres RLS policies.
 - Redis-backed rate limiting.
 - Background workers.
@@ -110,8 +115,6 @@ make migration-smoke  # Alembic roundtrip on disposable Postgres
 
 These require dependency installation, Docker, network, or heavier local execution:
 
-- Next.js production build.
-- Tailwind rendering in browser.
 - Docker Compose runtime (config updated for the sqlalchemy profile; full `docker compose up` still needs a machine with Docker).
 - OpenAPI schema snapshot in CI.
 - End-to-end browser tests.
@@ -122,8 +125,8 @@ These require dependency installation, Docker, network, or heavier local executi
 2. ~~Move approval, lineage, and dashboard aggregations fully onto repository-backed reads.~~ Done (`measurement_summary_stats`; approval/lineage panels already read repository routes).
 3. ~~Enable SQLAlchemy repository mode in a documented local profile.~~ Done (Docker profile + docs/self-hosting.md storage profiles).
 4. ~~Add persistent event quality trend storage.~~ Done (`event_quality_snapshots` + `GET /v1/events/health/history`).
-5. Add browser E2E once dependencies are intentionally installed.
-6. Add real auth provider and RLS policy checks.
+5. ~~Add browser E2E once dependencies are intentionally installed.~~ Done (`make e2e`, 7 Playwright journeys).
+6. ~~Add real auth provider~~ Done for API keys (hashed lookup, scopes, production guards); still open: OIDC user login and Postgres RLS policies.
 7. Add persistent audit/event views for operators.
 8. Replace per-ingest O(N) event quality snapshot recomputation with a SQL rollup before high-volume use.
 

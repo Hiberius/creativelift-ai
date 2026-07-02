@@ -17,7 +17,7 @@ export default function GitHubPage() {
           Open-source AI marketing measurement platform. Track every creative from prompt to profit with experiments, incrementality, attribution-ready events, and creative lineage.
         </p>
         <pre className="mt-8 overflow-x-auto rounded-lg border border-white/10 bg-black/40 p-5 text-sm text-slate-200">
-          <code>git clone https://github.com/your-org/creativelift-ai && cd creativelift-ai && docker compose up</code>
+          <code>git clone https://github.com/Hiberius/creativelift-ai && cd creativelift-ai && docker compose up</code>
         </pre>
         <div className="mt-6 flex items-center gap-3 text-cyan">
           <Terminal className="h-5 w-5" />

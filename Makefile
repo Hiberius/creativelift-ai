@@ -1,4 +1,4 @@
-.PHONY: setup dev test test-sqlalchemy migration-smoke verify-light lint api-dev api-test web-dev web-build web-lint
+.PHONY: setup dev test test-sqlalchemy migration-smoke e2e verify-light lint api-dev api-test web-dev web-build web-lint
 
 setup:
 	npm install
@@ -19,6 +19,11 @@ migration-smoke:
 	docker compose up -d --wait postgres
 	CREATIVELIFT_MIGRATION_TEST_DATABASE_URL=postgresql+psycopg://creativelift:creativelift_dev@localhost:5432/creativelift \
 		python3 -m pytest apps/api/tests/test_migrations.py -v
+
+e2e:
+	@echo "Requires a running stack: API on :8000 (sqlalchemy profile) and web on :3000."
+	@echo "See docs/self-hosting.md. Override with E2E_BASE_URL / E2E_API_BASE_URL."
+	cd apps/web && npx playwright test
 
 verify-light:
 	python3 -m compileall -q apps/api services connectors packages/sdk-python

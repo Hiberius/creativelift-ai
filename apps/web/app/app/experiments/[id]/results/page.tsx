@@ -3,10 +3,11 @@ import { ExperimentResultsPanel } from "@/components/experiment-results-panel";
 
 export const metadata = { title: "Experiment Results" };
 
-export default function ExperimentResultsPage({ params }: { params: { id: string } }) {
+export default async function ExperimentResultsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return (
     <AppShell title="Experiment Results">
-      <ExperimentResultsPanel experimentId={params.id} />
+      <ExperimentResultsPanel experimentId={id} />
     </AppShell>
   );
 }

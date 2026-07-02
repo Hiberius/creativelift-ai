@@ -83,6 +83,9 @@ class CoreRepository(Protocol):
     def delete_api_key(self, api_key_id: UUID, organization_id: UUID | None = None) -> bool:
         raise NotImplementedError
 
+    def get_api_key_by_hash(self, hashed_key: str) -> ApiKeyRead | None:
+        raise NotImplementedError
+
     def create_brand_pack(self, payload: BrandPackCreate, organization_id: UUID) -> BrandPackRead:
         raise NotImplementedError
 
@@ -248,7 +251,7 @@ class InMemoryCoreRepository:
         return items[:limit]
 
     def create_api_key(self, payload: ApiKeyCreate, organization_id: UUID) -> ApiKeyRead:
-        raw, prefix, _hashed = generate_api_key()
+        raw, prefix, hashed = generate_api_key()
         item = ApiKeyRead(
             id=uuid4(),
             organization_id=organization_id,
@@ -259,6 +262,7 @@ class InMemoryCoreRepository:
             created_at=datetime.now(UTC),
         )
         self.store.api_keys[item.id] = item
+        self.store.api_key_hashes[hashed] = item.id
         return item
 
     def list_api_keys(self, organization_id: UUID | None = None) -> list[ApiKeyRead]:
@@ -274,7 +278,21 @@ class InMemoryCoreRepository:
         if organization_id is not None and item.organization_id != organization_id:
             return False
         self.store.api_keys.pop(api_key_id)
+        self.store.api_key_hashes = {
+            hashed: key_id
+            for hashed, key_id in self.store.api_key_hashes.items()
+            if key_id != api_key_id
+        }
         return True
+
+    def get_api_key_by_hash(self, hashed_key: str) -> ApiKeyRead | None:
+        api_key_id = self.store.api_key_hashes.get(hashed_key)
+        if api_key_id is None:
+            return None
+        item = self.store.api_keys.get(api_key_id)
+        if item is None:
+            return None
+        return item.model_copy(update={"raw_key": None})
 
     def create_brand_pack(self, payload: BrandPackCreate, organization_id: UUID) -> BrandPackRead:
         item = BrandPackRead(id=uuid4(), organization_id=organization_id, **payload.model_dump())
@@ -711,6 +729,18 @@ class SQLAlchemyCoreRepository:
             item.revoked_at = datetime.now(UTC)
             session.commit()
             return True
+
+    def get_api_key_by_hash(self, hashed_key: str) -> ApiKeyRead | None:
+        from sqlalchemy import select
+        from app.db.models import ApiKey
+
+        statement = select(ApiKey).where(
+            ApiKey.hashed_key == hashed_key,
+            ApiKey.revoked_at.is_(None),
+        )
+        with self.session_factory() as session:
+            item = session.scalar(statement)
+            return self._api_key_to_schema(item, raw_key=None) if item is not None else None
 
     def create_brand_pack(self, payload: BrandPackCreate, organization_id: UUID) -> BrandPackRead:
         from app.db.models import BrandPack

@@ -78,6 +78,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Dependency scan placeholder
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Python dependency audit
         run: |
-          echo "Add pip-audit, npm audit signatures, Trivy, and CodeQL before production release."
+          python -m pip install --upgrade pip pip-audit
+          python -m pip install -e apps/api
+          python -m pip_audit --skip-editable
+      - name: Python static security scan
+        run: |
+          python -m pip install bandit
+          python -m bandit -r apps/api/app -ll -q
+      - name: Node dependency audit
+        run: |
+          npm ci
+          npm audit --audit-level=high

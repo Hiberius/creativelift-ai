@@ -11,7 +11,7 @@ from app.api.v1.endpoints.connectors import router as modular_connectors_router
 from app.api.v1.endpoints.measurement import router as modular_measurement_router
 from app.api.v1.endpoints.prompt_runs import router as modular_prompt_runs_router
 from app.core.rate_limit import rate_limiter
-from app.core.security import Principal, get_principal, set_demo_organization_id
+from app.core.security import Principal, get_principal, set_demo_organization_id, require_scope
 from app.schemas.common import (
     ApiKeyCreate,
     ApiKeyRead,
@@ -466,6 +466,7 @@ async def ingest_events(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     principal: Principal = Depends(get_principal),
 ) -> EventIngestResponse:
+    require_scope(principal, "events:write")
     rate_limiter.check(f"events:{principal.api_key_prefix or principal.organization_id}", 600, 60)
     accepted, deduped = core_repository.ingest_events(payload.events, principal.organization_id, idempotency_key)
     _record_audit("events.ingested", "event", principal.organization_id, count=len(payload.events))
