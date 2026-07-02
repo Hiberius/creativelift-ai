@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["customer_id"],
+  "properties": {
+    "customer_id": { "type": "string" },
+    "developer_token_secret_ref": { "type": "string" },
+    "oauth_secret_ref": { "type": "string" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend-and-services:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e apps/api -e services/experiment-engine -e services/bandit-service -e services/uplift-service -e services/mmm-service pytest
+      - name: Run tests
+        run: |
+          python -m pytest apps/api/tests services/experiment-engine/tests services/bandit-service/tests services/uplift-service/tests services/mmm-service/tests connectors
+      - name: Compile Python
+        run: python -m compileall apps/api services
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm --workspace apps/web run lint
+      - name: Build
+        run: npm --workspace apps/web run build
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: creativelift
+          POSTGRES_USER: creativelift
+          POSTGRES_PASSWORD: creativelift_dev
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U creativelift -d creativelift"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e apps/api pytest
+      - name: Alembic migration smoke test
+        env:
+          CREATIVELIFT_MIGRATION_TEST_DATABASE_URL: postgresql+psycopg://creativelift:creativelift_dev@localhost:5432/creativelift
+        run: python -m pytest apps/api/tests/test_migrations.py -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker Compose config
+        run: docker compose config
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency scan placeholder
+        run: |
+          echo "Add pip-audit, npm audit signatures, Trivy, and CodeQL before production release."

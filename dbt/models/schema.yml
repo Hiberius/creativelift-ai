@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: creativelift
+    tables:
+      - name: events
+
+models:
+  - name: creative_events
+    description: Normalized CreativeLift event stream.
+  - name: experiment_daily
+    description: Daily experiment metrics by variant.

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["event_name_path", "timestamp_path"],
+  "properties": {
+    "event_name_path": { "type": "string" },
+    "timestamp_path": { "type": "string" },
+    "anonymous_id_path": { "type": "string" },
+    "user_id_path": { "type": "string" }
+  },
+  "additionalProperties": false
+}

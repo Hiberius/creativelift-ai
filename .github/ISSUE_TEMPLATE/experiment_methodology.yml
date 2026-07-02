@@ -1,0 +1,15 @@
+name: Experiment methodology
+description: Discuss statistical, causal, or experiment design behavior.
+title: "[Methodology]: "
+labels: ["measurement", "needs-triage"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question or concern
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Data, references, or examples

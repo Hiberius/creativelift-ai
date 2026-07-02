@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["portal_id"],
+  "properties": {
+    "portal_id": { "type": "string" },
+    "private_app_token_secret_ref": { "type": "string" }
+  },
+  "additionalProperties": false
+}

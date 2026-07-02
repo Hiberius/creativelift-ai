@@ -1,0 +1,21 @@
+{
+  "name": "creativelift-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source AI marketing measurement platform. Track every creative from prompt to profit with experiments, incrementality, attribution-ready events, and creative lineage.",
+  "workspaces": [
+    "apps/web",
+    "packages/schemas",
+    "packages/sdk-ts"
+  ],
+  "scripts": {
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build",
+    "lint": "npm --workspace apps/web run lint",
+    "test": "npm --workspace apps/web run test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "Apache-2.0"
+}

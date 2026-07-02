@@ -1,0 +1,7 @@
+name: creativelift
+version: "0.1.0"
+profile: creativelift
+model-paths: ["models"]
+models:
+  creativelift:
+    +materialized: view

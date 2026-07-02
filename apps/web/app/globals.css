@@ -1,0 +1,91 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg: #03070b;
+  --panel: #0b1117;
+  --panel-2: #101820;
+  --line: #22303a;
+  --text: #f6f8fb;
+  --muted: #98a6b3;
+  --cyan: #20e7f6;
+  --mint: #63f584;
+  --lime: #a4ff5f;
+  --danger: #ff5c70;
+  --warning: #ffbd48;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at 72% 18%, rgba(32, 231, 246, 0.12), transparent 34rem),
+    radial-gradient(circle at 30% 70%, rgba(99, 245, 132, 0.08), transparent 34rem),
+    var(--bg);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.shell {
+  width: min(1180px, calc(100vw - 40px));
+  margin: 0 auto;
+}
+
+.panel {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: linear-gradient(180deg, rgba(16, 24, 32, 0.88), rgba(8, 13, 18, 0.92));
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.28);
+}
+
+.hairline {
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.grid-glow {
+  background-image:
+    linear-gradient(rgba(32, 231, 246, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(32, 231, 246, 0.08) 1px, transparent 1px);
+  background-size: 52px 52px;
+  mask-image: linear-gradient(to bottom, black, transparent);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  background: var(--mint);
+  box-shadow: 0 0 14px rgba(99, 245, 132, 0.8);
+}
+
+@media (max-width: 860px) {
+  .shell {
+    width: min(100vw - 28px, 680px);
+  }
+}

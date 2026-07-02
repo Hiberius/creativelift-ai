@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["project_api_key", "host"],
+  "properties": {
+    "host": { "type": "string", "default": "https://app.posthog.com" },
+    "project_api_key": { "type": "string" },
+    "event_names": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["warehouse"],
+  "properties": {
+    "warehouse": { "type": "string", "enum": ["bigquery", "snowflake", "redshift"] },
+    "events_table": { "type": "string" }
+  },
+  "additionalProperties": false
+}

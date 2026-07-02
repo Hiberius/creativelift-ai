@@ -1,0 +1,17 @@
+name: Connector request
+description: Request a new source, destination, or ad platform connector.
+title: "[Connector]: "
+labels: ["connector", "needs-triage"]
+body:
+  - type: input
+    id: system
+    attributes:
+      label: System
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+    validations:
+      required: true
