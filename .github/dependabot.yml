@@ -1,22 +1,20 @@
+# Version-update PRs are intentionally disabled (limit 0) to keep the repo
+# quiet: Dependabot still powers security alerts, and maintainers can bump
+# these limits when they want automated update PRs.
 version: 2
 updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
-      interval: "weekly"
-    groups:
-      npm-minor-and-patch:
-        update-types: ["minor", "patch"]
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 0
   - package-ecosystem: "pip"
     directory: "/apps/api"
     schedule:
-      interval: "weekly"
-    groups:
-      python-minor-and-patch:
-        update-types: ["minor", "patch"]
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 0
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    open-pull-requests-limit: 0
