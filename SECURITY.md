@@ -8,7 +8,12 @@ CreativeLift AI is built for privacy-first, self-hosted marketing measurement.
 
 ## Reporting a Vulnerability
 
-Please do not open public issues for sensitive reports. Email the future maintainer contact listed by your deployment owner. Until a public security mailbox is created, self-hosters should route reports through their internal security owner.
+Report vulnerabilities privately via GitHub Security Advisories:
+https://github.com/Hiberius/creativelift-ai/security/advisories/new
+
+Please do **not** open public issues for security reports. You can expect an
+initial response within 7 days. Coordinated disclosure is appreciated: give us
+a reasonable window to ship a fix before publishing details.
 
 ## Secure Defaults
 

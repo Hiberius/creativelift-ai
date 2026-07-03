@@ -12,12 +12,14 @@
 **/.venv
 *.pyc
 *.db
-apps/web
+apps/web/.next
+apps/web/node_modules
+apps/web/test-results
+apps/web/playwright-report
 dbt
 docs
 examples
 infra
-packages
 tmp
 .claude
 .claude-flow

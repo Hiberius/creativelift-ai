@@ -53,7 +53,9 @@ services:
 
   web:
     build:
-      context: ./apps/web
+      # Repo-root context so the image installs from the workspace lockfile.
+      context: .
+      dockerfile: apps/web/Dockerfile
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     ports:
