@@ -53,7 +53,7 @@ def disposable_database():
     with admin_engine.connect() as connection:
         connection.execute(sqlalchemy.text(f'CREATE DATABASE "{database_name}"'))
     try:
-        yield str(admin_url.set(database=database_name))
+        yield admin_url.set(database=database_name).render_as_string(hide_password=False)
     finally:
         with admin_engine.connect() as connection:
             connection.execute(
