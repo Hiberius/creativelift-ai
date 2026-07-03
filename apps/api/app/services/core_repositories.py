@@ -40,6 +40,21 @@ VALID_CORE_REPOSITORY_BACKENDS = {"memory", "sqlalchemy"}
 
 
 @dataclass(frozen=True)
+class UserAuthRecord:
+    id: UUID
+    email: str
+    name: str
+    hashed_password: str | None
+
+
+@dataclass(frozen=True)
+class UserSessionRecord:
+    user_id: UUID
+    organization_id: UUID
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
 class MeasurementSummaryStats:
     total_events: int
     conversion_events: int
@@ -59,6 +74,35 @@ class CoreRepository(Protocol):
         raise NotImplementedError
 
     def latest_organization_id(self) -> UUID | None:
+        raise NotImplementedError
+
+    def create_user(self, email: str, name: str, hashed_password: str) -> UserAuthRecord:
+        raise NotImplementedError
+
+    def get_user_by_email(self, email: str) -> UserAuthRecord | None:
+        raise NotImplementedError
+
+    def get_user(self, user_id: UUID) -> UserAuthRecord | None:
+        raise NotImplementedError
+
+    def create_membership(self, user_id: UUID, organization_id: UUID, role: str) -> None:
+        raise NotImplementedError
+
+    def get_membership_role(self, user_id: UUID, organization_id: UUID) -> str | None:
+        raise NotImplementedError
+
+    def get_primary_membership(self, user_id: UUID) -> tuple[UUID, str] | None:
+        raise NotImplementedError
+
+    def create_user_session(
+        self, user_id: UUID, organization_id: UUID, token_hash: str, expires_at: datetime
+    ) -> None:
+        raise NotImplementedError
+
+    def get_active_user_session(self, token_hash: str) -> UserSessionRecord | None:
+        raise NotImplementedError
+
+    def revoke_user_session(self, token_hash: str) -> bool:
         raise NotImplementedError
 
     def record_audit(
@@ -204,6 +248,9 @@ class CoreRepository(Protocol):
     ) -> MeasurementSummaryStats:
         raise NotImplementedError
 
+    def compute_event_health(self, organization_id: UUID) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 class InMemoryCoreRepository:
     def __init__(self, store: DemoStore = demo_store) -> None:
@@ -223,6 +270,55 @@ class InMemoryCoreRepository:
         for organization_id in self.store.organizations:
             latest = organization_id
         return latest
+
+    def create_user(self, email: str, name: str, hashed_password: str) -> UserAuthRecord:
+        normalized = email.strip().lower()
+        if normalized in self.store.users_by_email:
+            raise ValueError("email already registered")
+        record = UserAuthRecord(id=uuid4(), email=normalized, name=name, hashed_password=hashed_password)
+        self.store.users_by_email[normalized] = record
+        self.store.users_by_id[record.id] = record
+        return record
+
+    def get_user_by_email(self, email: str) -> UserAuthRecord | None:
+        return self.store.users_by_email.get(email.strip().lower())
+
+    def get_user(self, user_id: UUID) -> UserAuthRecord | None:
+        return self.store.users_by_id.get(user_id)
+
+    def create_membership(self, user_id: UUID, organization_id: UUID, role: str) -> None:
+        self.store.memberships.append((user_id, organization_id, role))
+
+    def get_membership_role(self, user_id: UUID, organization_id: UUID) -> str | None:
+        for member_id, member_org, role in self.store.memberships:
+            if member_id == user_id and member_org == organization_id:
+                return role
+        return None
+
+    def get_primary_membership(self, user_id: UUID) -> tuple[UUID, str] | None:
+        for member_id, member_org, role in self.store.memberships:
+            if member_id == user_id:
+                return member_org, role
+        return None
+
+    def create_user_session(
+        self, user_id: UUID, organization_id: UUID, token_hash: str, expires_at: datetime
+    ) -> None:
+        self.store.user_sessions[token_hash] = UserSessionRecord(
+            user_id=user_id, organization_id=organization_id, expires_at=expires_at
+        )
+
+    def get_active_user_session(self, token_hash: str) -> UserSessionRecord | None:
+        record = self.store.user_sessions.get(token_hash)
+        if record is None:
+            return None
+        expires_at = record.expires_at if record.expires_at.tzinfo else record.expires_at.replace(tzinfo=UTC)
+        if expires_at <= datetime.now(UTC):
+            return None
+        return record
+
+    def revoke_user_session(self, token_hash: str) -> bool:
+        return self.store.user_sessions.pop(token_hash, None) is not None
 
     def record_audit(
         self,
@@ -620,6 +716,11 @@ class InMemoryCoreRepository:
             approved_creatives=approved_creatives,
         )
 
+    def compute_event_health(self, organization_id: UUID) -> dict[str, Any]:
+        from app.services.event_quality import event_health_summary
+
+        return event_health_summary(self.list_events(organization_id, limit=None))
+
 
 class SQLAlchemyCoreRepository:
     def __init__(self, session_factory: Callable[[], Any]) -> None:
@@ -654,6 +755,126 @@ class SQLAlchemyCoreRepository:
             return session.scalar(
                 select(Organization.id).order_by(Organization.created_at.desc()).limit(1)
             )
+
+    def create_user(self, email: str, name: str, hashed_password: str) -> UserAuthRecord:
+        from sqlalchemy.exc import IntegrityError
+
+        from app.db.models import User
+
+        item = User(email=email.strip().lower(), name=name, hashed_password=hashed_password)
+        with self.session_factory() as session:
+            session.add(item)
+            try:
+                session.commit()
+            except IntegrityError as exc:
+                session.rollback()
+                raise ValueError("email already registered") from exc
+            session.refresh(item)
+            return UserAuthRecord(id=item.id, email=item.email, name=item.name, hashed_password=item.hashed_password)
+
+    def get_user_by_email(self, email: str) -> UserAuthRecord | None:
+        from sqlalchemy import select
+
+        from app.db.models import User
+
+        with self.session_factory() as session:
+            item = session.scalar(select(User).where(User.email == email.strip().lower()))
+            if item is None:
+                return None
+            return UserAuthRecord(id=item.id, email=item.email, name=item.name, hashed_password=item.hashed_password)
+
+    def get_user(self, user_id: UUID) -> UserAuthRecord | None:
+        from app.db.models import User
+
+        with self.session_factory() as session:
+            item = session.get(User, user_id)
+            if item is None:
+                return None
+            return UserAuthRecord(id=item.id, email=item.email, name=item.name, hashed_password=item.hashed_password)
+
+    def create_membership(self, user_id: UUID, organization_id: UUID, role: str) -> None:
+        from app.db.models import Membership
+
+        with self.session_factory() as session:
+            session.add(Membership(user_id=user_id, organization_id=organization_id, role=role))
+            session.commit()
+
+    def get_membership_role(self, user_id: UUID, organization_id: UUID) -> str | None:
+        from sqlalchemy import select
+
+        from app.db.models import Membership
+
+        with self.session_factory() as session:
+            return session.scalar(
+                select(Membership.role).where(
+                    Membership.user_id == user_id,
+                    Membership.organization_id == organization_id,
+                )
+            )
+
+    def get_primary_membership(self, user_id: UUID) -> tuple[UUID, str] | None:
+        from sqlalchemy import select
+
+        from app.db.models import Membership
+
+        with self.session_factory() as session:
+            row = session.execute(
+                select(Membership.organization_id, Membership.role)
+                .where(Membership.user_id == user_id)
+                .order_by(Membership.created_at.asc())
+                .limit(1)
+            ).first()
+            return (row[0], row[1]) if row is not None else None
+
+    def create_user_session(
+        self, user_id: UUID, organization_id: UUID, token_hash: str, expires_at: datetime
+    ) -> None:
+        from app.db.models import UserSession
+
+        with self.session_factory() as session:
+            session.add(
+                UserSession(
+                    user_id=user_id,
+                    organization_id=organization_id,
+                    token_hash=token_hash,
+                    expires_at=expires_at,
+                )
+            )
+            session.commit()
+
+    def get_active_user_session(self, token_hash: str) -> UserSessionRecord | None:
+        from sqlalchemy import select
+
+        from app.db.models import UserSession
+
+        with self.session_factory() as session:
+            item = session.scalar(
+                select(UserSession).where(
+                    UserSession.token_hash == token_hash,
+                    UserSession.revoked_at.is_(None),
+                )
+            )
+            if item is None:
+                return None
+            expires_at = item.expires_at if item.expires_at.tzinfo else item.expires_at.replace(tzinfo=UTC)
+            if expires_at <= datetime.now(UTC):
+                return None
+            return UserSessionRecord(
+                user_id=item.user_id, organization_id=item.organization_id, expires_at=expires_at
+            )
+
+    def revoke_user_session(self, token_hash: str) -> bool:
+        from sqlalchemy import select
+
+        from app.db.models import UserSession
+
+        with self.session_factory() as session:
+            item = session.scalar(select(UserSession).where(UserSession.token_hash == token_hash))
+            if item is None or item.revoked_at is not None:
+                return False
+            item.revoked_at = datetime.now(UTC)
+            session.commit()
+            return True
 
     def record_audit(
         self,
@@ -1411,6 +1632,60 @@ class SQLAlchemyCoreRepository:
             running_experiments=int(running_experiments),
             pending_review_creatives=pending_review_creatives,
             approved_creatives=int(approval_counts.get("approved", 0)),
+        )
+
+    def compute_event_health(self, organization_id: UUID) -> dict[str, Any]:
+        from sqlalchemy import case, func, select
+
+        from app.db.models import Event
+        from app.services.event_quality import summarize_event_aggregates
+        from app.services.measurement import CONVERSION_EVENT_NAMES
+
+        conversion_names = sorted(CONVERSION_EVENT_NAMES)
+        is_conversion = Event.event_name.in_(conversion_names)
+        statement = select(
+            func.count(Event.id),
+            func.count(func.distinct(func.coalesce(Event.user_id, Event.anonymous_id))),
+            func.count(func.coalesce(Event.user_id, Event.anonymous_id)),
+            func.count(Event.experiment_id),
+            func.count(Event.variant_id),
+            func.coalesce(func.sum(case((is_conversion, 1), else_=0)), 0),
+            func.coalesce(
+                func.sum(case(((is_conversion) & (Event.value.isnot(None)), 1), else_=0)), 0
+            ),
+            func.coalesce(func.sum(case((is_conversion, Event.value), else_=0)), 0),
+            func.max(Event.timestamp),
+        ).where(Event.organization_id == organization_id)
+
+        with self.session_factory() as session:
+            (
+                total_events,
+                unique_actors,
+                events_with_identity,
+                events_with_experiment,
+                events_with_variant,
+                conversion_events,
+                valued_conversion_events,
+                revenue,
+                last_event_at,
+            ) = session.execute(statement).one()
+
+        if not total_events:
+            from app.services.event_quality import event_health_summary
+
+            return event_health_summary([])
+        if isinstance(revenue, Decimal):
+            revenue = float(revenue)
+        return summarize_event_aggregates(
+            total_events=int(total_events),
+            unique_actors=int(unique_actors),
+            events_with_identity=int(events_with_identity),
+            events_with_experiment=int(events_with_experiment),
+            events_with_variant=int(events_with_variant),
+            conversion_events=int(conversion_events),
+            valued_conversion_events=int(valued_conversion_events),
+            revenue=float(revenue or 0.0),
+            last_event_at=last_event_at,
         )
 
     def _event_quality_snapshot_to_schema(self, item: Any) -> EventQualitySnapshotRead:

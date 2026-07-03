@@ -6,7 +6,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](apps/api/pyproject.toml)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](apps/web/package.json)
-[![Tests](https://img.shields.io/badge/tests-160_unit_·_7_E2E-brightgreen)](#verified-not-just-promised)
+[![Tests](https://img.shields.io/badge/tests-171_unit_·_8_E2E-brightgreen)](#verified-not-just-promised)
 
 AI made content infinite. Measurement became the bottleneck. Your team can generate 50 ad variants in an hour — but platform ROAS can't tell you which one creates **incremental revenue**. CreativeLift AI is a self-hostable measurement OS that tracks every AI-generated creative from **brief → prompt → approval → experiment → events → causal lift → decision**.
 
@@ -37,7 +37,7 @@ Open http://localhost:3000 (dashboard) and http://localhost:8000/docs (API). Cli
 No Docker? The zero-dependency lab runs entirely in memory:
 
 ```bash
-python3 -m pytest          # 160 tests, no database needed
+python3 -m pytest          # 171 tests, no database needed
 cd apps/api && python3 -m uvicorn app.main:app   # then open http://localhost:8000/demo
 ```
 
@@ -70,20 +70,23 @@ Python and TypeScript SDKs live in [packages/](packages/), browser/server tracki
 
 ## Security by default
 
-- API keys are stored **HMAC-SHA256 hashed** (peppered) and resolved against the database — the raw key is shown exactly once.
-- **Scoped keys** (`events:write`, `measurement:read`, …) enforced per endpoint; revocation is immediate.
+- **Human login with revocable sessions** — email + password (stdlib scrypt hashing), httpOnly session cookies, logout that actually revokes server-side. **RBAC**: viewers can't approve creatives, only owners/admins manage API keys, service keys can't impersonate humans.
+- **Row-Level Security in Postgres** — every tenant table carries a FORCEd isolation policy tied to the authenticated organization; the runtime connects as a non-superuser role, so even an application bug can't read another tenant's rows. Proven by the migration smoke test.
+- API keys are stored **HMAC-SHA256 hashed** (peppered) and resolved against the database — the raw key is shown exactly once. **Scoped keys** (`events:write`, …) enforced per endpoint; revocation is immediate.
 - **Production guards**: the API refuses to boot in production with development credentials, and demo fallbacks are disabled outside development.
-- Security headers on every response, CSP on the demo console, strict CORS, request-size limits, per-key rate limiting.
-- **Non-root containers**, and CI runs `pip-audit`, `bandit`, and `npm audit` on every push.
+- Security headers on every response, CSP on the demo console, strict CORS, request-size limits, **Redis-backed rate limiting** with in-memory fallback.
+- **Non-root containers**, daily **database backups** with 14-day retention, and CI runs `pip-audit`, `bandit`, and `npm audit` on every push.
+
+![Sign in](docs/screenshots/07-login.png)
 
 ## Verified, not just promised
 
 | Check | What actually runs |
 |---|---|
-| `python3 -m pytest` | 160 tests: API workflows, both storage backends, auth, idempotency, statistics, connectors |
+| `python3 -m pytest` | 171 tests: API workflows, both storage backends, human auth + RBAC, idempotency, statistics, connectors |
 | `make test-sqlalchemy` | The SQLAlchemy backend exercised on SQLite: parity, tenancy, hashing |
-| `make migration-smoke` | Alembic upgrade → downgrade → re-upgrade against a disposable Postgres |
-| `make e2e` | 7 Playwright journeys against the production build and a live Postgres-backed API |
+| `make migration-smoke` | Alembic upgrade → downgrade → re-upgrade, plus an RLS test proving tenant A cannot read tenant B |
+| `make e2e` | 8 Playwright journeys (incl. register → dashboard → logout) against the production build and a live RLS-enforced Postgres |
 | `docker compose restart api` | Ingested events, snapshots, and audit logs survive — persistence is real |
 
 Every screenshot in this README was captured by the E2E suite from the running product.

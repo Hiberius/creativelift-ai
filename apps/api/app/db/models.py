@@ -55,6 +55,8 @@ class User(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(180), nullable=False)
     auth_provider: Mapped[str] = mapped_column(String(80), default="local")
     external_subject: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    # Nullable so future SSO/OIDC users can exist without a local password.
+    hashed_password: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
 
 class Membership(Base, TimestampMixin):
@@ -65,6 +67,18 @@ class Membership(Base, TimestampMixin):
     organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     role: Mapped[str] = mapped_column(String(40), nullable=False)
+
+
+class UserSession(Base, TimestampMixin):
+    __tablename__ = "user_sessions"
+    __table_args__ = (Index("ix_user_sessions_token", "token_hash", unique=True),)
+
+    id: Mapped[UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
+    organization_id: Mapped[UUID] = mapped_column(ForeignKey("organizations.id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ApiKey(Base, TimestampMixin):

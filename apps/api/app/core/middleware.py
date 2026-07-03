@@ -11,6 +11,10 @@ from app.core.config import settings
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        from app.db.tenant import set_current_organization
+
+        # Never leak the previous request's tenant into this one.
+        set_current_organization(None)
         request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
         request.state.request_id = request_id
         start = time.perf_counter()

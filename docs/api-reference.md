@@ -66,6 +66,13 @@ The frontend reads this from `NEXT_PUBLIC_DEMO_API_KEY` and defaults to `dev-api
 - `POST /v1/experiments/{experiment_id}/complete`
 - `GET /v1/experiments/{experiment_id}/results`
 
+## Auth
+
+- `POST /v1/auth/register`
+- `POST /v1/auth/login`
+- `POST /v1/auth/logout`
+- `GET /v1/auth/session`
+
 ## Events
 
 - `GET /v1/events`

@@ -33,6 +33,20 @@ make test-sqlalchemy        # runs the SQLAlchemy backend tests on in-memory SQL
 
 With the sqlalchemy profile `/readyz` performs a real database ping and returns 503 while the database is unreachable.
 
+## Authentication & Tenant Isolation
+
+- **Human login**: visit `/login` to create the first account (email + password). The creator becomes the organization `owner`; roles gate approvals and API-key management. In development without a session the dashboard falls back to the demo principal; in production (`APP_ENV=production`) authentication is required everywhere.
+- **Row-Level Security**: the compose Postgres creates a non-superuser runtime role (`creativelift_app`) via `infra/docker/postgres-init/` — superusers bypass RLS, so the API must not connect as the bootstrap user. Migrations run as the owner through `ALEMBIC_DATABASE_URL`. Set `APP_DB_PASSWORD` in production.
+- **Upgrading an existing dev volume**: the init script only runs on first initialization — run `docker compose down -v` once before starting the RLS-enabled stack.
+
+## Backups
+
+The `db-backup` compose sidecar writes a compressed dump to `./backups` daily and keeps 14 days. Restore with:
+
+```bash
+pg_restore -h localhost -U creativelift -d creativelift --clean backups/<file>.dump
+```
+
 Production checklist:
 
 - managed Postgres with backups

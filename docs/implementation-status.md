@@ -74,6 +74,11 @@ This is the honest current state of the MVP.
 - `POST /v1/measurement/mmm-runs` and `uplift-runs` compute synchronously via their services with populated outputs and clean failure states.
 - All 7 connector adapters implement `validate_config()`; PostHog implements `pull()` with cursor pagination (tested against mocked transports); `POST /v1/connectors/{id}/sync` ingests via push (any provider) or pull (PostHog) with idempotent replay.
 - The frontend never lies: fallback data is labeled with a "Demo data" badge and API failures show a human-readable banner with Retry; skeleton loaders cover the summary grid and detail panels.
+- Human login works end to end: register/login/logout with scrypt-hashed passwords and revocable DB-backed sessions; the dashboard has a `/login` page, session-aware header, and auto-redirect when the API requires auth (E2E covered).
+- RBAC is enforced: approvals need owner/admin/marketer, API-key management needs owner/admin, service keys cannot approve creatives.
+- Postgres Row-Level Security isolates tenants at the database: FORCEd policies on all 19 organization-scoped tables, per-transaction tenant GUC, non-superuser runtime role; verified by the migration smoke test.
+- Rate limiting can run on Redis (compose default) with in-memory fallback; ingest-time quality snapshots use SQL aggregates instead of full scans.
+- The compose stack ships a daily database backup sidecar with 14-day retention.
 
 Current lightweight verification:
 
@@ -102,9 +107,7 @@ make migration-smoke  # Alembic roundtrip on disposable Postgres
 ## Scaffolded
 
 - Postgres-backed production hardening (RLS, pooling, backups) beyond the tested repository layer.
-- OIDC/SSO user login (API-key auth is real; human login is still the demo principal).
-- Postgres RLS policies.
-- Redis-backed rate limiting.
+- OIDC/SSO providers on top of the local email+password login.
 - Background workers.
 - ClickHouse event store.
 - Scheduled/continuous connector sync (PostHog pull and push-mode sync exist; Rudder/Snowplow live pull and schedulers do not).
@@ -130,9 +133,9 @@ These require dependency installation, Docker, network, or heavier local executi
 3. ~~Enable SQLAlchemy repository mode in a documented local profile.~~ Done (Docker profile + docs/self-hosting.md storage profiles).
 4. ~~Add persistent event quality trend storage.~~ Done (`event_quality_snapshots` + `GET /v1/events/health/history`).
 5. ~~Add browser E2E once dependencies are intentionally installed.~~ Done (`make e2e`, 7 Playwright journeys).
-6. ~~Add real auth provider~~ Done for API keys (hashed lookup, scopes, production guards); still open: OIDC user login and Postgres RLS policies.
+6. ~~Add real auth provider~~ Done: hashed API keys with scopes and production guards, local email+password login with revocable sessions, RBAC, and Postgres RLS. Still open: OIDC/SSO providers.
 7. Add persistent audit/event views for operators.
-8. Replace per-ingest O(N) event quality snapshot recomputation with a SQL rollup before high-volume use.
+8. ~~Replace per-ingest O(N) event quality snapshot recomputation with a SQL rollup.~~ Done (`compute_event_health` aggregates).
 
 ## P1: Product Depth
 

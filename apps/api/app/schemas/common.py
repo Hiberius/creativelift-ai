@@ -82,6 +82,32 @@ class EventName(StrEnum):
     custom_conversion = "custom_conversion"
 
 
+class RegisterRequest(APIModel):
+    email: str = Field(min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    name: str = Field(min_length=1, max_length=180)
+    password: str = Field(min_length=8, max_length=200)
+    organization_name: str = Field(min_length=1, max_length=180)
+    organization_slug: str | None = Field(default=None, min_length=1, max_length=120, pattern=r"^[a-z0-9-]+$")
+
+
+class LoginRequest(APIModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class UserRead(APIModel):
+    id: UUID
+    email: str
+    name: str
+
+
+class AuthSessionRead(APIModel):
+    user: UserRead
+    organization: "OrganizationRead"
+    role: str
+    expires_at: datetime
+
+
 class OrganizationCreate(APIModel):
     name: str = Field(min_length=1, max_length=180)
     slug: str = Field(min_length=1, max_length=120, pattern=r"^[a-z0-9-]+$")

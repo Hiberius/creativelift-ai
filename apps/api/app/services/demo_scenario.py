@@ -93,6 +93,9 @@ def create_demo_scenario(repository: CoreRepository) -> DemoScenarioRead:
     organization = repository.create_organization(
         OrganizationCreate(name=f"CreativeLift Demo {suffix}", slug=f"creativelift-demo-{suffix}")
     )
+    from app.db.tenant import set_current_organization
+
+    set_current_organization(organization.id)
     repository.record_audit("organization.created", "organization", organization.id, str(organization.id))
 
     brand_pack = repository.create_brand_pack(

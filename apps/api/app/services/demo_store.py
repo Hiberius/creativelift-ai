@@ -161,6 +161,10 @@ class DemoStore:
         self.event_quality_snapshots: list[EventQualitySnapshotRead] = []
         self.api_keys: dict[UUID, ApiKeyRead] = {}
         self.api_key_hashes: dict[str, UUID] = {}
+        self.users_by_email: dict = {}
+        self.users_by_id: dict = {}
+        self.memberships: list = []
+        self.user_sessions: dict = {}
         self.bandits: dict[UUID, dict] = {}
         self.runs: dict[UUID, RunRead] = {}
 

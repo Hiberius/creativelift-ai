@@ -8,8 +8,12 @@ from app.services.measurement import CONVERSION_EVENT_NAMES
 
 
 def capture_event_quality_snapshot(repository: Any, organization_id: UUID) -> Any:
-    """Compute the current event health and persist it as a trend snapshot."""
-    summary = event_health_summary(repository.list_events(organization_id, limit=None))
+    """Compute the current event health and persist it as a trend snapshot.
+
+    Uses the repository's aggregate rollup (a handful of SQL aggregates on
+    the persistent backend) instead of loading every event into memory.
+    """
+    summary = repository.compute_event_health(organization_id)
     return repository.record_event_quality_snapshot(summary, organization_id)
 
 
@@ -65,6 +69,36 @@ def event_health_summary(events: list[Any]) -> dict:
                 valued_conversion_events += 1
                 revenue += float(event.value)
 
+    return summarize_event_aggregates(
+        total_events=total_events,
+        unique_actors=len(actors),
+        events_with_identity=events_with_identity,
+        events_with_experiment=events_with_experiment,
+        events_with_variant=events_with_variant,
+        conversion_events=conversion_events,
+        valued_conversion_events=valued_conversion_events,
+        revenue=revenue,
+        last_event_at=max(event.timestamp for event in events),
+        event_counts=dict(event_counts),
+        channel_counts=dict(channel_counts),
+    )
+
+
+def summarize_event_aggregates(
+    *,
+    total_events: int,
+    unique_actors: int,
+    events_with_identity: int,
+    events_with_experiment: int,
+    events_with_variant: int,
+    conversion_events: int,
+    valued_conversion_events: int,
+    revenue: float,
+    last_event_at: Any,
+    event_counts: dict[str, int] | None = None,
+    channel_counts: dict[str, int] | None = None,
+) -> dict:
+    """Shared health math for both the in-memory path and the SQL rollup."""
     experiment_coverage = events_with_experiment / total_events
     variant_coverage = events_with_variant / total_events
     revenue_coverage = valued_conversion_events / conversion_events if conversion_events else 1.0
@@ -83,14 +117,14 @@ def event_health_summary(events: list[Any]) -> dict:
 
     return {
         "total_events": total_events,
-        "unique_actors": len(actors),
+        "unique_actors": unique_actors,
         "events_with_experiment": events_with_experiment,
         "events_with_variant": events_with_variant,
         "conversion_events": conversion_events,
         "revenue": revenue,
-        "last_event_at": max(event.timestamp for event in events),
-        "event_counts": dict(event_counts),
-        "channel_counts": dict(channel_counts),
+        "last_event_at": last_event_at,
+        "event_counts": event_counts or {},
+        "channel_counts": channel_counts or {},
         "experiment_coverage": experiment_coverage,
         "variant_coverage": variant_coverage,
         "revenue_coverage": revenue_coverage,

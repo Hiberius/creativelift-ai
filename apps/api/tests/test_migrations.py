@@ -18,7 +18,7 @@ import pytest
 
 MIGRATION_TEST_DATABASE_URL = os.getenv("CREATIVELIFT_MIGRATION_TEST_DATABASE_URL")
 API_DIR = Path(__file__).resolve().parents[1]
-HEAD_REVISION = "0002_event_quality_snapshots"
+HEAD_REVISION = "0004_row_level_security"
 
 pytestmark = [
     pytest.mark.migration,
@@ -119,11 +119,92 @@ def test_alembic_upgrade_head_creates_full_schema(disposable_database):
         "connectors",
         "audit_logs",
         "event_quality_snapshots",
+        "user_sessions",
     }
     assert expected_tables <= tables
     assert version == HEAD_REVISION
     assert "uq_events_org_idempotency" in event_constraints
     assert "ix_event_quality_snapshots_org_captured" in snapshot_indexes
+
+
+def test_row_level_security_isolates_tenants(disposable_database):
+    """RLS must block cross-tenant reads even for the table owner (FORCE)."""
+    import sqlalchemy
+
+    from sqlalchemy.engine import make_url
+
+    admin_engine = sqlalchemy.create_engine(disposable_database, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as connection:
+        connection.execute(
+            sqlalchemy.text(
+                """
+                DO $$ BEGIN
+                  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'creativelift_app') THEN
+                    CREATE ROLE creativelift_app LOGIN PASSWORD 'creativelift_app_dev';
+                  END IF;
+                END $$;
+                """
+            )
+        )
+    admin_engine.dispose()
+
+    _run_alembic(["upgrade", "head"], disposable_database)
+    app_url = make_url(disposable_database).set(
+        username="creativelift_app", password="creativelift_app_dev"
+    )
+    engine = sqlalchemy.create_engine(app_url)
+    admin = sqlalchemy.create_engine(disposable_database)
+    org_a, org_b = str(uuid.uuid4()), str(uuid.uuid4())
+    try:
+        with admin.begin() as connection:
+            for org_id, slug in ((org_a, "org-a"), (org_b, "org-b")):
+                connection.execute(
+                    sqlalchemy.text(
+                        "INSERT INTO organizations (id, name, slug) VALUES (:id, :name, :slug)"
+                    ),
+                    {"id": org_id, "name": slug, "slug": slug},
+                )
+
+        def _insert_brief(org_id: str, name: str) -> None:
+            with engine.begin() as connection:
+                connection.execute(
+                    sqlalchemy.text("SELECT set_config('app.organization_id', :org, true)"),
+                    {"org": org_id},
+                )
+                connection.execute(
+                    sqlalchemy.text(
+                        "INSERT INTO briefs (id, organization_id, name, objective, target_audience, channel, primary_kpi)"
+                        " VALUES (:id, :org, :name, 'obj', 'aud', 'email', 'signup')"
+                    ),
+                    {"id": str(uuid.uuid4()), "org": org_id, "name": name},
+                )
+
+        _insert_brief(org_a, "brief-a")
+        _insert_brief(org_b, "brief-b")
+
+        def _count_briefs(org_id: str | None) -> int:
+            with engine.begin() as connection:
+                if org_id is not None:
+                    connection.execute(
+                        sqlalchemy.text("SELECT set_config('app.organization_id', :org, true)"),
+                        {"org": org_id},
+                    )
+                return connection.scalar(sqlalchemy.text("SELECT count(*) FROM briefs"))
+
+        assert _count_briefs(org_a) == 1
+        assert _count_briefs(org_b) == 1
+        assert _count_briefs(None) == 0, "without a tenant GUC the owner must see nothing"
+
+        with engine.begin() as connection:
+            connection.execute(
+                sqlalchemy.text("SELECT set_config('app.organization_id', :org, true)"),
+                {"org": org_a},
+            )
+            names = connection.execute(sqlalchemy.text("SELECT name FROM briefs")).scalars().all()
+        assert names == ["brief-a"], "tenant A must never see tenant B rows"
+    finally:
+        engine.dispose()
+        admin.dispose()
 
 
 def test_alembic_downgrade_base_and_reupgrade_roundtrip(disposable_database):

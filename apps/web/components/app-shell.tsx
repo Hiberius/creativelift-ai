@@ -1,9 +1,46 @@
+"use client";
+
 import Link from "next/link";
-import { BookOpen, ChevronDown, Code2, Github } from "lucide-react";
+import { BookOpen, ChevronDown, Code2, Github, LogOut } from "lucide-react";
 import { appNavItems } from "@/lib/site-data";
+import { AuthProvider, useAuthSession } from "./auth-context";
 import { Logo } from "./logo";
 
-export function AppShell({ children, title }: { children: React.ReactNode; title: string }) {
+function OrgChip() {
+  const { status, session, logout } = useAuthSession();
+
+  if (status === "authenticated" && session) {
+    return (
+      <div className="hidden items-center gap-2 md:flex">
+        <div className="flex items-center gap-3 rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-200">
+          <span>{session.organization.name}</span>
+          <span className="text-slate-500">·</span>
+          <span className="text-slate-400">
+            {session.user.name} ({session.role})
+          </span>
+          <ChevronDown className="h-4 w-4" />
+        </div>
+        <button
+          className="flex items-center gap-2 rounded-md border border-white/10 px-3 py-2 text-sm text-slate-300 hover:border-cyan/50 hover:text-cyan"
+          onClick={() => void logout()}
+          type="button"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button className="hidden items-center gap-3 rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-200 md:flex">
+      Growth Lab Inc.
+      <ChevronDown className="h-4 w-4" />
+    </button>
+  );
+}
+
+function AppShellContent({ children, title }: { children: React.ReactNode; title: string }) {
   return (
     <div className="min-h-screen bg-ink text-white">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-white/10 bg-black/35 p-5 xl:block">
@@ -41,10 +78,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
               <div className="xl:hidden">
                 <Logo />
               </div>
-              <button className="hidden items-center gap-3 rounded-md border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-200 md:flex">
-                Growth Lab Inc.
-                <ChevronDown className="h-4 w-4" />
-              </button>
+              <OrgChip />
             </div>
             <div className="flex items-center gap-5 text-sm">
               <span className="hidden items-center gap-2 text-slate-300 sm:flex">
@@ -69,5 +103,13 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
         </main>
       </div>
     </div>
+  );
+}
+
+export function AppShell({ children, title }: { children: React.ReactNode; title: string }) {
+  return (
+    <AuthProvider>
+      <AppShellContent title={title}>{children}</AppShellContent>
+    </AuthProvider>
   );
 }

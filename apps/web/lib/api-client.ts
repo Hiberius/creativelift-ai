@@ -43,6 +43,27 @@ export type MeResponse = {
   principal: Principal;
 };
 
+export type AuthUser = {
+  id: string;
+  email: string;
+  name: string;
+};
+
+export type AuthSession = {
+  user: AuthUser;
+  organization: Organization;
+  role: string;
+  expires_at: string;
+};
+
+export type RegisterInput = {
+  email: string;
+  name: string;
+  password: string;
+  organization_name: string;
+  organization_slug?: string;
+};
+
 export type BrandPackInput = {
   name: string;
   voice?: string;
@@ -270,9 +291,28 @@ export type MeasurementSummary = {
   notes: string[];
 };
 
+/**
+ * Error raised for non-2xx API responses. When the API returns the
+ * structured `{error:{code,message}}` envelope, `code` and `message` are
+ * populated from it so callers (e.g. the login form) can branch on a
+ * stable error code instead of parsing prose.
+ */
+export class ApiRequestError extends Error {
+  status: number;
+  code?: string;
+
+  constructor(status: number, message: string, code?: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       "X-API-Key": demoApiKey,
@@ -281,7 +321,18 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(detail || `Request failed with ${response.status}`);
+    let code: string | undefined;
+    let message = detail || `Request failed with ${response.status}`;
+    try {
+      const parsed = JSON.parse(detail) as { error?: { code?: string; message?: string } };
+      if (parsed?.error?.message) {
+        message = parsed.error.message;
+        code = parsed.error.code;
+      }
+    } catch {
+      // Response body was not JSON; fall back to the raw text above.
+    }
+    throw new ApiRequestError(response.status, message, code);
   }
   if (response.status === 204) {
     return undefined as T;
@@ -291,6 +342,21 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const creativeLiftApi = {
   getMe: () => apiFetch<MeResponse>("/v1/me"),
+  getAuthSession: () => apiFetch<AuthSession>("/v1/auth/session"),
+  login: (email: string, password: string) =>
+    apiFetch<AuthSession>("/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    }),
+  register: (payload: RegisterInput) =>
+    apiFetch<AuthSession>("/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+  logout: () =>
+    apiFetch<{ status: string }>("/v1/auth/logout", {
+      method: "POST"
+    }),
   runDemoScenario: () =>
     apiFetch<DemoScenario>("/v1/demo/scenario", {
       method: "POST"

@@ -7,11 +7,13 @@ from uuid import UUID
 from bandit_service import ThompsonBandit
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 
+from app.api.v1.endpoints.auth import router as modular_auth_router
 from app.api.v1.endpoints.connectors import router as modular_connectors_router
 from app.api.v1.endpoints.measurement import router as modular_measurement_router
 from app.api.v1.endpoints.prompt_runs import router as modular_prompt_runs_router
 from app.core.rate_limit import rate_limiter
-from app.core.security import Principal, get_principal, set_demo_organization_id, require_scope
+from app.core.security import Principal, get_principal, require_role, require_scope, set_demo_organization_id
+from app.db.tenant import set_current_organization
 from app.schemas.common import (
     ApiKeyCreate,
     ApiKeyRead,
@@ -72,6 +74,7 @@ from app.services.measurement_reports import (
 router = APIRouter()
 
 for modular_router in (
+    modular_auth_router,
     modular_prompt_runs_router,
     modular_measurement_router,
     modular_connectors_router,
@@ -93,6 +96,7 @@ def _record_audit(
 async def create_organization(payload: OrganizationCreate) -> OrganizationRead:
     item = core_repository.create_organization(payload)
     set_demo_organization_id(item.id)
+    set_current_organization(item.id)
     _record_audit("organization.created", "organization", item.id, str(item.id))
     return item
 
@@ -289,6 +293,7 @@ async def approve_creative(
     payload: ReviewDecision,
     principal: Principal = Depends(get_principal),
 ) -> CreativeTreatmentRead:
+    require_role(principal, {"owner", "admin", "marketer"})
     return _set_approval(
         creative_id,
         ApprovalStatus.approved,
@@ -304,6 +309,7 @@ async def reject_creative(
     payload: ReviewDecision,
     principal: Principal = Depends(get_principal),
 ) -> CreativeTreatmentRead:
+    require_role(principal, {"owner", "admin", "marketer"})
     return _set_approval(creative_id, ApprovalStatus.rejected, payload.notes, principal.organization_id)
 
 
@@ -328,6 +334,7 @@ async def generate_variants(
 
 @router.post("/experiments", response_model=ExperimentRead, tags=["experiments"])
 async def create_experiment(payload: ExperimentCreate, principal: Principal = Depends(get_principal)) -> ExperimentRead:
+    require_role(principal, {"owner", "admin", "marketer", "service"})
     item = core_repository.create_experiment(payload, principal.organization_id)
     _record_audit("experiment.created", "experiment", principal.organization_id, str(item.id))
     return item
@@ -426,16 +433,19 @@ def _validate_experiment_launch(experiment: ExperimentRead) -> None:
 
 @router.post("/experiments/{experiment_id}/start", response_model=ExperimentRead, tags=["experiments"])
 async def start_experiment(experiment_id: UUID, principal: Principal = Depends(get_principal)) -> ExperimentRead:
+    require_role(principal, {"owner", "admin", "marketer", "service"})
     return _set_experiment_status(experiment_id, ExperimentStatus.running, principal.organization_id)
 
 
 @router.post("/experiments/{experiment_id}/pause", response_model=ExperimentRead, tags=["experiments"])
 async def pause_experiment(experiment_id: UUID, principal: Principal = Depends(get_principal)) -> ExperimentRead:
+    require_role(principal, {"owner", "admin", "marketer", "service"})
     return _set_experiment_status(experiment_id, ExperimentStatus.paused, principal.organization_id)
 
 
 @router.post("/experiments/{experiment_id}/complete", response_model=ExperimentRead, tags=["experiments"])
 async def complete_experiment(experiment_id: UUID, principal: Principal = Depends(get_principal)) -> ExperimentRead:
+    require_role(principal, {"owner", "admin", "marketer", "service"})
     return _set_experiment_status(experiment_id, ExperimentStatus.completed, principal.organization_id)
 
 
@@ -558,6 +568,7 @@ async def audit_logs(principal: Principal = Depends(get_principal)) -> list[Audi
 
 @router.post("/api-keys", response_model=ApiKeyRead, tags=["api keys"])
 async def create_api_key(payload: ApiKeyCreate, principal: Principal = Depends(get_principal)) -> ApiKeyRead:
+    require_role(principal, {"owner", "admin"})
     item = core_repository.create_api_key(payload, principal.organization_id)
     _record_audit("api_key.created", "api_key", principal.organization_id, str(item.id), prefix=item.prefix)
     return item
@@ -570,5 +581,6 @@ async def list_api_keys(principal: Principal = Depends(get_principal)) -> list[A
 
 @router.delete("/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["api keys"])
 async def delete_api_key(api_key_id: UUID, principal: Principal = Depends(get_principal)) -> None:
+    require_role(principal, {"owner", "admin"})
     core_repository.delete_api_key(api_key_id, principal.organization_id)
     _record_audit("api_key.deleted", "api_key", principal.organization_id, str(api_key_id))

@@ -233,6 +233,13 @@ def test_measurement_summary_stats_parity(any_core_repository):
     assert stats.last_event_at is not None
     assert stats.running_experiments == 1
 
+    health = repository.compute_event_health(organization.id)
+    assert health["total_events"] == 3
+    assert health["conversion_events"] == 2
+    assert health["unique_actors"] == 2
+    assert health["revenue"] == pytest.approx(150.0)
+    assert 0.0 <= health["quality_score"] <= 1.0
+
     future = datetime.now(UTC) + timedelta(days=1)
     empty_window = repository.measurement_summary_stats(organization.id, since=future)
     assert empty_window.total_events == 0

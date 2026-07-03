@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — human login, RBAC, and tenant isolation at the database
+
+- Human login: email + password registration and sign-in (`/v1/auth/register`, `/v1/auth/login`, `/v1/auth/logout`, `/v1/auth/session`) with stdlib scrypt password hashing and revocable server-side sessions (httpOnly cookie). Migration `0003` adds `users.hashed_password` and the `user_sessions` table.
+- Role-based access control: approvals require owner/admin/marketer, API-key management requires owner/admin, experiment lifecycle allows service keys; enforced on both session and API-key principals.
+- Postgres Row-Level Security (migration `0004`): every organization-scoped table gets a FORCEd `tenant_isolation` policy driven by a per-transaction `app.organization_id` GUC that the API sets from the authenticated principal. The compose runtime connects as a dedicated non-superuser role (`creativelift_app`, created by a Postgres init script) because superusers bypass RLS; Alembic keeps running as the owner via `ALEMBIC_DATABASE_URL`. The migration smoke test proves cross-tenant reads return zero rows.
+- Login UI: `/login` page with account creation, session-aware app shell (organization + user + role chip, Logout), and an automatic redirect to `/login` when the API requires authentication; dev demo mode keeps working without login.
+- Redis-backed rate limiting (`RATE_LIMIT_BACKEND=redis`, enabled in compose) with graceful in-memory fallback when Redis is unreachable.
+- Event-quality snapshots on ingest are now computed with SQL aggregates on the persistent backend instead of loading every event into memory.
+- Daily database backups: a compose sidecar dumps the database (14-day retention) into `./backups`; restore instructions in docs/self-hosting.md.
+- Upgrade note: the RLS profile needs the new Postgres init script — reset dev volumes with `docker compose down -v` before `docker compose up --build`.
+
 ## Unreleased — every feature real (multi-agent swarm)
 
 - Unified the statistics source: the API measurement service now imports VariantStats, compare_conversion, srm_check and cuped_adjust from services/experiment-engine instead of duplicating them.

@@ -5,10 +5,13 @@ services:
       POSTGRES_DB: creativelift
       POSTGRES_USER: creativelift
       POSTGRES_PASSWORD: creativelift_dev
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-creativelift_app_dev}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Creates the non-superuser runtime role (RLS applies to it; superusers bypass RLS).
+      - ./infra/docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U creativelift -d creativelift"]
       interval: 5s
@@ -32,11 +35,14 @@ services:
       dockerfile: apps/api/Dockerfile
     env_file: .env.example
     environment:
-      DATABASE_URL: postgresql+psycopg://creativelift:creativelift_dev@postgres:5432/creativelift
+      # Runtime connects as the RLS-constrained app role; migrations as the owner.
+      DATABASE_URL: postgresql+psycopg://creativelift_app:${APP_DB_PASSWORD:-creativelift_app_dev}@postgres:5432/creativelift
+      ALEMBIC_DATABASE_URL: postgresql+psycopg://creativelift:creativelift_dev@postgres:5432/creativelift
       REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_BACKEND: redis
       # Docker is the documented persistent profile; the bare quickstart stays in-memory.
       RESOURCE_REPOSITORY_BACKEND: sqlalchemy
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "DATABASE_URL=$$ALEMBIC_DATABASE_URL alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
     depends_on:
@@ -54,6 +60,22 @@ services:
       - "3000:3000"
     depends_on:
       - api
+
+  db-backup:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: creativelift_dev
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Daily compressed dump, 14-day retention. Restore: pg_restore -d creativelift <file>.
+    command: >-
+      sh -c 'while true; do
+      pg_dump -h postgres -U creativelift -d creativelift -Fc -f "/backups/creativelift-$$(date +%Y%m%d-%H%M%S).dump"
+      && find /backups -name "*.dump" -mtime +14 -delete;
+      sleep 86400; done'
 
 volumes:
   postgres_data:
