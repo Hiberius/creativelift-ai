@@ -34,5 +34,14 @@ class ResourceService:
     ) -> dict[str, Any] | None:
         return self.repository.get(resource, resource_id, organization_id)
 
+    def update(
+        self,
+        resource: str,
+        resource_id: UUID,
+        changes: dict[str, Any],
+        organization_id: UUID | None = None,
+    ) -> dict[str, Any] | None:
+        return self.repository.update(resource, resource_id, changes, organization_id)
+
 
 resource_service = ResourceService()

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — every feature real (multi-agent swarm)
+
+- Unified the statistics source: the API measurement service now imports VariantStats, compare_conversion, srm_check and cuped_adjust from services/experiment-engine instead of duplicating them.
+- Real sequential testing: `sequential_peek` now implements always-valid mSPRT (normal mixture, log-space; Johari, Koomen, Pekelis & Walsh, KDD 2017). Additive `sequential` block in `POST /v1/demo/analyze` and in experiment results.
+- `POST /v1/measurement/mmm-runs` and `POST /v1/measurement/uplift-runs` now compute synchronously via mmm-service and uplift-service, returning `succeeded` with populated outputs (or `failed` with a clear error) instead of empty `queued` records.
+- `POST /v1/bandits/{id}/decide` delegates Thompson sampling to bandit-service (`ThompsonBandit.from_state`); the inline copy in the router is gone.
+- Connectors are usable end-to-end: real `validate_config()` on all 7 adapters, PostHog `pull()` with cursor pagination over httpx (tests use mocked transports), and a new `POST /v1/connectors/{connector_id}/sync` endpoint (push mode for any provider, pull mode for PostHog) with idempotent replay, event-quality snapshot capture, and connector `last_sync_at`/status updates.
+- The api Docker image build context moved to the repository root so the image installs the four statistical services and ships the connectors directory.
+- Frontend honesty pass: silent demo fallbacks replaced by a visible "Demo data" badge and a human-readable API error banner with Retry across all 13 data-driven panels; skeleton loaders on dashboard summary and experiment detail.
+- Removed dead code: the unmounted `apps/api/app/api/v1/endpoints/events.py` and its orphaned `app/services/events.py`.
+
 ## Unreleased — security hardening & real E2E
 
 - Real API-key authentication: keys are HMAC-hashed, resolved against the repository on every request (`Authorization: Bearer` and `X-API-Key`), revocation is immediate, and per-key scopes (e.g. `events:write`) are enforced on ingestion.

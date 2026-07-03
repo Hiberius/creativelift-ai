@@ -95,6 +95,7 @@ The frontend reads this from `NEXT_PUBLIC_DEMO_API_KEY` and defaults to `dev-api
 
 - `POST /v1/connectors`
 - `GET /v1/connectors`
+- `POST /v1/connectors/{connector_id}/sync`
 
 ## Response Shapes
 

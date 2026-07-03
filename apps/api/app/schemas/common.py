@@ -281,6 +281,8 @@ class MeasurementAnalysisRead(APIModel):
     comparison: dict[str, Any]
     srm: dict[str, Any]
     sample_size: dict[str, Any]
+    # Additive optional field: always-valid sequential test (mSPRT) block.
+    sequential: dict[str, Any] | None = None
     recommendation: str
     decision_summary: str
     recommended_action: str

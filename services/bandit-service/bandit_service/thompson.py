@@ -16,6 +16,17 @@ class ThompsonBandit:
             raise ValueError("At least two arms are required")
         self.arms = {arm: ArmState() for arm in arms}
 
+    @classmethod
+    def from_state(cls, arms: dict[str, dict[str, float]]) -> ThompsonBandit:
+        """Rebuild a bandit from persisted per-arm Beta parameters."""
+        bandit = cls(list(arms))
+        for arm, state in arms.items():
+            bandit.arms[arm] = ArmState(
+                alpha=float(state.get("alpha", 1.0)),
+                beta=float(state.get("beta", 1.0)),
+            )
+        return bandit
+
     def decide(self) -> tuple[str, dict[str, float]]:
         samples = {arm: betavariate(state.alpha, state.beta) for arm, state in self.arms.items()}
         return max(samples, key=samples.get), samples

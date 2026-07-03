@@ -52,6 +52,15 @@ class ResourceRepository(Protocol):
     ) -> dict[str, Any] | None:
         raise NotImplementedError
 
+    def update(
+        self,
+        resource: str,
+        resource_id: UUID,
+        changes: dict[str, Any],
+        organization_id: UUID | None = None,
+    ) -> dict[str, Any] | None:
+        raise NotImplementedError
+
 
 class InMemoryResourceRepository:
     def __init__(self, store: DemoStore = demo_store) -> None:
@@ -82,6 +91,15 @@ class InMemoryResourceRepository:
         organization_id: UUID | None = None,
     ) -> dict[str, Any] | None:
         return self.store.get(resource, resource_id, organization_id)
+
+    def update(
+        self,
+        resource: str,
+        resource_id: UUID,
+        changes: dict[str, Any],
+        organization_id: UUID | None = None,
+    ) -> dict[str, Any] | None:
+        return self.store.update(resource, resource_id, changes, organization_id)
 
 
 class SQLAlchemyResourceRepository:
@@ -134,6 +152,26 @@ class SQLAlchemyResourceRepository:
                 return None
             if organization_id is not None and getattr(item, "organization_id", None) != organization_id:
                 return None
+            return self._to_payload(item)
+
+    def update(
+        self,
+        resource: str,
+        resource_id: UUID,
+        changes: dict[str, Any],
+        organization_id: UUID | None = None,
+    ) -> dict[str, Any] | None:
+        model = self._model_for(resource)
+        with self.session_factory() as session:
+            item = session.get(model, resource_id)
+            if item is None:
+                return None
+            if organization_id is not None and getattr(item, "organization_id", None) != organization_id:
+                return None
+            for field, value in changes.items():
+                setattr(item, field, value)
+            session.commit()
+            session.refresh(item)
             return self._to_payload(item)
 
     def _model_for(self, resource: str) -> type[Any]:

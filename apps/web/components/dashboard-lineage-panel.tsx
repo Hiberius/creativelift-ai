@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GitBranch, RefreshCcw } from "lucide-react";
 import { AuditLog, creativeLiftApi } from "@/lib/api-client";
+import { toApiErrorMessage } from "./ui/data-source-notice";
 
 function labelAction(action: string) {
   return action.replaceAll("_", " ").replaceAll(".", " ");
@@ -14,22 +15,22 @@ export function DashboardLineagePanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadLogs() {
+  const loadLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setLogs(await creativeLiftApi.listAuditLogs());
     } catch (err) {
       setLogs([]);
-      setError(err instanceof Error ? err.message : "Lineage unavailable");
+      setError(toApiErrorMessage(err, "Could not reach the API. Lineage unavailable."));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadLogs();
-  }, []);
+  }, [loadLogs]);
 
   return (
     <section className="panel rounded-lg p-5">

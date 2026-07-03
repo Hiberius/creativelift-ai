@@ -53,5 +53,19 @@ class DemoStore:
             return item
         return None
 
+    def update(
+        self,
+        resource: str,
+        resource_id: UUID,
+        changes: dict[str, Any],
+        organization_id: UUID | None = None,
+    ) -> dict[str, Any] | None:
+        item = self.get(resource, resource_id, organization_id)
+        if item is None:
+            return None
+        item.update(changes)
+        item["updated_at"] = datetime.now(UTC)
+        return item
+
 
 demo_store = DemoStore()

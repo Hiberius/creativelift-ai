@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { GitBranch, RefreshCcw } from "lucide-react";
 import { CreativeTreatment, creativeLiftApi } from "@/lib/api-client";
 import { StatusPill } from "./status-pill";
+import { ApiErrorBanner, DemoDataBadge, toApiErrorMessage } from "./ui/data-source-notice";
 
 function fallbackTreatment(id: string): CreativeTreatment {
   return {
@@ -32,22 +33,27 @@ export function CreativeDetailPanel({ creativeId }: { creativeId: string }) {
   const [treatment, setTreatment] = useState<CreativeTreatment>(fallbackTreatment(creativeId));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(true);
 
-  async function loadTreatment() {
+  const loadTreatment = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      setTreatment(await creativeLiftApi.getCreativeTreatment(creativeId));
+      const next = await creativeLiftApi.getCreativeTreatment(creativeId);
+      setTreatment(next);
+      setIsDemo(false);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load treatment; showing demo lineage");
+      setTreatment(fallbackTreatment(creativeId));
+      setIsDemo(true);
+      setError(toApiErrorMessage(err, "Could not reach the API. Showing demo lineage."));
     } finally {
       setLoading(false);
     }
-  }
+  }, [creativeId]);
 
   useEffect(() => {
     void loadTreatment();
-  }, [creativeId]);
+  }, [loadTreatment]);
 
   const lineage = [
     ["Brief", treatment.brief_id?.slice(0, 8) ?? "demo"],
@@ -61,9 +67,12 @@ export function CreativeDetailPanel({ creativeId }: { creativeId: string }) {
     <div className="grid gap-4 lg:grid-cols-[0.68fr_0.32fr]">
       <section className="panel rounded-lg p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold">Prompt lineage</h2>
-            <p className="mt-2 text-sm text-slate-400">{loading ? "Loading treatment..." : treatment.objective}</p>
+          <div className="flex items-center gap-3">
+            <div>
+              <h2 className="text-2xl font-semibold">Prompt lineage</h2>
+              <p className="mt-2 text-sm text-slate-400">{loading ? "Loading treatment..." : treatment.objective}</p>
+            </div>
+            {isDemo ? <DemoDataBadge /> : null}
           </div>
           <div className="flex items-center gap-2">
             <StatusPill label={treatment.approval_status} />
@@ -72,7 +81,11 @@ export function CreativeDetailPanel({ creativeId }: { creativeId: string }) {
             </button>
           </div>
         </div>
-        {error ? <div className="mt-4 rounded-lg border border-yellow-400/30 bg-yellow-400/10 p-4 text-sm text-yellow-100">{error}</div> : null}
+        {error ? (
+          <div className="mt-4">
+            <ApiErrorBanner message={error} onRetry={loadTreatment} retrying={loading} />
+          </div>
+        ) : null}
         <div className="mt-6 grid gap-3 md:grid-cols-5">
           {lineage.map(([node, value], index) => (
             <div key={node} className="relative rounded-md border border-cyan/30 bg-cyan/5 p-4 text-center">

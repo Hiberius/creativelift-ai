@@ -322,8 +322,10 @@ class MMMRunCreate(BaseModel):
 class MMMRunRead(TenantRead):
     name: str
     status: str
-    date_start: datetime | None
-    date_end: datetime | None
+    # Defaults keep responses valid when optional inputs were omitted at create
+    # time (create payloads exclude None values before persistence).
+    date_start: datetime | None = None
+    date_end: datetime | None = None
     inputs: dict[str, Any]
     outputs: dict[str, Any]
 
@@ -337,7 +339,7 @@ class UpliftRunCreate(BaseModel):
 class UpliftRunRead(TenantRead):
     name: str
     status: str
-    experiment_id: UUID | None
+    experiment_id: UUID | None = None
     inputs: dict[str, Any]
     outputs: dict[str, Any]
 
@@ -354,6 +356,29 @@ class ConnectorRead(TenantRead):
     status: str
     config: dict[str, Any]
     last_sync_at: datetime | None
+
+
+class ConnectorSyncRequest(BaseModel):
+    """Body for POST /v1/connectors/{connector_id}/sync.
+
+    Push mode: supply ``events`` (raw provider payloads) and they are
+    normalized via the connector's adapter and ingested.
+    Pull mode: omit ``events`` and the connector's adapter fetches records
+    itself using the connector's stored config (currently only PostHog).
+    """
+
+    events: list[dict[str, Any]] | None = None
+    since: str | None = None
+    max_events: int = Field(default=100, ge=1, le=1000)
+    mapping: dict[str, str] | None = None
+
+
+class ConnectorSyncResponse(BaseModel):
+    accepted: int
+    deduplicated: int
+    skipped: int = 0
+    provider: str
+    mode: Literal["push", "pull"]
 
 
 class AuditLogRead(TenantRead):

@@ -6,7 +6,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)](apps/api/pyproject.toml)
 [![Next.js 15](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](apps/web/package.json)
-[![Tests](https://img.shields.io/badge/tests-103_unit_·_7_E2E-brightgreen)](#verified-not-just-promised)
+[![Tests](https://img.shields.io/badge/tests-160_unit_·_7_E2E-brightgreen)](#verified-not-just-promised)
 
 AI made content infinite. Measurement became the bottleneck. Your team can generate 50 ad variants in an hour — but platform ROAS can't tell you which one creates **incremental revenue**. CreativeLift AI is a self-hostable measurement OS that tracks every AI-generated creative from **brief → prompt → approval → experiment → events → causal lift → decision**.
 
@@ -16,9 +16,10 @@ AI made content infinite. Measurement became the bottleneck. Your team can gener
 
 - **Creative Treatments** — every variant becomes a versioned, measurable unit: prompt lineage, hook, CTA, offer, compliance status, spend, revenue, lift.
 - **Governance before spend** — approval queue with brand guardrails; experiments refuse to launch if approved claims lack evidence.
-- **Real experiments, real statistics** — deterministic assignment, lift with confidence intervals, p-values, SRM (broken-randomization) checks, CUPED variance reduction, and a plain-language recommendation: promote, retire, or keep collecting.
+- **Real experiments, real statistics** — deterministic assignment, lift with confidence intervals, p-values, SRM (broken-randomization) checks, CUPED variance reduction, **always-valid sequential testing (mSPRT)** so you can peek without inflating false positives, and a plain-language recommendation: promote, retire, or keep collecting.
 - **Event ingestion that survives restarts** — idempotent API/SDK ingestion into Postgres, with event-quality snapshots you can trend over time.
 - **AI generation with lineage** — plug any OpenAI-compatible endpoint; every generated variant records model, prompt, and token usage. A deterministic mock provider keeps the quickstart free.
+- **Connector sync that works today** — push raw payloads from any of the 7 adapters (`POST /v1/connectors/{id}/sync`) or pull straight from PostHog, with idempotent replay and per-sync quality snapshots.
 
 ![Experiment results with lift, p-value, SRM and a decision](docs/screenshots/05-experiment-results.png)
 
@@ -36,7 +37,7 @@ Open http://localhost:3000 (dashboard) and http://localhost:8000/docs (API). Cli
 No Docker? The zero-dependency lab runs entirely in memory:
 
 ```bash
-python3 -m pytest          # 103 tests, no database needed
+python3 -m pytest          # 160 tests, no database needed
 cd apps/api && python3 -m uvicorn app.main:app   # then open http://localhost:8000/demo
 ```
 
@@ -79,7 +80,7 @@ Python and TypeScript SDKs live in [packages/](packages/), browser/server tracki
 
 | Check | What actually runs |
 |---|---|
-| `python3 -m pytest` | 103 tests: API workflows, both storage backends, auth, idempotency, statistics |
+| `python3 -m pytest` | 160 tests: API workflows, both storage backends, auth, idempotency, statistics, connectors |
 | `make test-sqlalchemy` | The SQLAlchemy backend exercised on SQLite: parity, tenancy, hashing |
 | `make migration-smoke` | Alembic upgrade → downgrade → re-upgrade against a disposable Postgres |
 | `make e2e` | 7 Playwright journeys against the production build and a live Postgres-backed API |
@@ -105,14 +106,14 @@ Deep dives: [How it works](docs/how-it-works.md) · [Measurement methodology](do
 
 ## Roadmap
 
-- **v0.2** — live connector sync (PostHog, GA, ad platforms), ClickHouse event store, connector UI
+- **v0.2** — scheduled connector sync and more live pulls (GA, ad platforms), ClickHouse event store, connector UI
 - **v0.3** — contextual bandits, MMM calibration, warehouse-native exports
 
 The [implementation status](docs/implementation-status.md) page says plainly what is working, what is demo, and what is scaffold — we'd rather under-promise.
 
 ## Contributing
 
-Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Good first areas: a live connector, sequential testing, dashboard polish.
+Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Good first areas: a new live connector pull, connector scheduling, contextual bandits, dashboard polish.
 
 ## Credits
 

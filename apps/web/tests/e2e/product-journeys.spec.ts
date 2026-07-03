@@ -40,10 +40,15 @@ test("landing page renders the product story", async ({ page }) => {
   await capture(page, "01-landing");
 });
 
-test("dashboard renders hero metrics and API-fed panels", async ({ page }) => {
+test("dashboard shows the measurement summary computed from real events", async ({ page }) => {
   await page.goto("/app/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await expect(page.getByText(/Prompt-to-profit lift/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /measurement summary/i })).toBeVisible({
+    timeout: 15_000,
+  });
+  // Cards must be the API-computed values, not fallback data with the demo badge.
+  await expect(page.getByText(/impressions/i).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Demo data")).toHaveCount(0);
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(1000);
   await capture(page, "02-dashboard");

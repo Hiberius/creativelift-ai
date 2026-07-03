@@ -41,3 +41,8 @@ next-env.d.ts
 # Playwright artifacts
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Local AI orchestration artifacts
+.claude/
+.claude-flow/
+.swarm/

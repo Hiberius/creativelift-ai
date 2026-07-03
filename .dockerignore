@@ -1,0 +1,24 @@
+# Applies to builds whose context is the repository root (apps/api/Dockerfile).
+# The web image keeps its own context (./apps/web) and .dockerignore.
+.git
+.github
+.codex
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.venv
+*.pyc
+*.db
+apps/web
+dbt
+docs
+examples
+infra
+packages
+tmp
+.claude
+.claude-flow
+.swarm

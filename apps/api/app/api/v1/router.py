@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from hashlib import sha256
-from random import betavariate
 from uuid import UUID
 
+from bandit_service import ThompsonBandit
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 
 from app.api.v1.endpoints.connectors import router as modular_connectors_router
@@ -509,11 +509,8 @@ async def decide_bandit(bandit_id: UUID, principal: Principal = Depends(get_prin
     bandit = core_repository.get_bandit(bandit_id, principal.organization_id)
     if not bandit:
         raise HTTPException(status_code=404, detail="Bandit not found")
-    samples = {
-        arm: betavariate(stats["alpha"], stats["beta"])
-        for arm, stats in bandit["arms"].items()
-    }
-    return BanditDecision(chosen_arm=max(samples, key=samples.get), samples=samples)
+    chosen_arm, samples = ThompsonBandit.from_state(bandit["arms"]).decide()
+    return BanditDecision(chosen_arm=chosen_arm, samples=samples)
 
 
 @router.post("/bandits/{bandit_id}/update", tags=["bandits"])

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Activity, AlertTriangle, RefreshCcw } from "lucide-react";
 import { creativeLiftApi, EventHealth } from "@/lib/api-client";
+import { toApiErrorMessage } from "./ui/data-source-notice";
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
@@ -13,22 +14,22 @@ export function DashboardIngestionHealth() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadHealth() {
+  const loadHealth = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setHealth(await creativeLiftApi.getEventHealth());
     } catch (err) {
       setHealth(null);
-      setError(err instanceof Error ? err.message : "Event health unavailable");
+      setError(toApiErrorMessage(err, "Could not reach the API. Event health unavailable."));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadHealth();
-  }, []);
+  }, [loadHealth]);
 
   const cards = health
     ? [

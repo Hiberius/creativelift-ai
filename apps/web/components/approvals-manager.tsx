@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, RefreshCcw, X } from "lucide-react";
 import { CreativeTreatment, creativeLiftApi } from "@/lib/api-client";
 import { StatusPill } from "./status-pill";
+import { ApiErrorBanner, toApiErrorMessage } from "./ui/data-source-notice";
 
 export function ApprovalsManager() {
   const [treatments, setTreatments] = useState<CreativeTreatment[]>([]);
@@ -17,17 +18,17 @@ export function ApprovalsManager() {
     [treatments]
   );
 
-  async function loadTreatments() {
+  const loadTreatments = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setTreatments(await creativeLiftApi.listCreativeTreatments());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load approval queue");
+      setError(toApiErrorMessage(err, "Could not reach the API. The approval queue is unavailable."));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   async function review(id: string, decision: "approve" | "reject") {
     setBusyId(id);
@@ -44,7 +45,7 @@ export function ApprovalsManager() {
       setTreatments((current) => current.map((item) => (item.id === id ? updated : item)));
       setEvidenceUrls((current) => ({ ...current, [id]: "" }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Could not ${decision} treatment`);
+      setError(toApiErrorMessage(err, `Could not ${decision} treatment`));
     } finally {
       setBusyId(null);
     }
@@ -52,7 +53,7 @@ export function ApprovalsManager() {
 
   useEffect(() => {
     void loadTreatments();
-  }, []);
+  }, [loadTreatments]);
 
   return (
     <section className="panel rounded-lg p-6">
@@ -71,7 +72,11 @@ export function ApprovalsManager() {
         </button>
       </div>
 
-      {error ? <div className="mt-5 rounded-lg border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{error}</div> : null}
+      {error ? (
+        <div className="mt-5">
+          <ApiErrorBanner message={error} onRetry={loadTreatments} retrying={loading} />
+        </div>
+      ) : null}
 
       <div className="mt-6 divide-y divide-white/10">
         {loading ? <p className="py-4 text-sm text-slate-400">Loading treatments...</p> : null}

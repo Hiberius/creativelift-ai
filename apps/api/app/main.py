@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 
+from app.core import monorepo  # noqa: F401  # must run before app.api imports the services
 from app.api.v1.router import router as v1_router
 from app.core.config import settings
 from app.demo_console import demo_console

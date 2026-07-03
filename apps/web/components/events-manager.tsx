@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, RefreshCcw, Send, Terminal } from "lucide-react";
 import { creativeLiftApi, EventHealth, EventIngestResponse, EventName, EventRecord } from "@/lib/api-client";
 import { treatments } from "@/lib/site-data";
+import { ApiErrorBanner, toApiErrorMessage } from "./ui/data-source-notice";
 
 const eventNames: EventName[] = ["impression", "click", "session_start", "signup", "lead", "purchase", "revenue", "custom_conversion"];
 
@@ -28,6 +29,7 @@ export function EventsManager() {
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [health, setHealth] = useState<EventHealth | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const selectedTreatment = treatments.find((item) => item.id === creativeTreatmentId) ?? treatments[0];
   const payloadPreview = useMemo(() => {
@@ -52,7 +54,7 @@ export function EventsManager() {
     };
   }, [anonymousId, creativeTreatmentId, currency, eventName, selectedTreatment?.channel, selectedTreatment?.experiment, selectedTreatment?.name, value]);
 
-  async function loadEvents() {
+  const loadEvents = useCallback(async () => {
     setLoadingEvents(true);
     try {
       const [nextEvents, nextHealth] = await Promise.all([
@@ -61,13 +63,15 @@ export function EventsManager() {
       ]);
       setEvents(nextEvents);
       setHealth(nextHealth);
-    } catch {
+      setLoadError(null);
+    } catch (err) {
       setEvents([]);
       setHealth(null);
+      setLoadError(toApiErrorMessage(err, "Could not reach the API. Event health and recent events are unavailable."));
     } finally {
       setLoadingEvents(false);
     }
-  }
+  }, []);
 
   async function submitEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,7 +85,7 @@ export function EventsManager() {
       setIdempotencyKey(nextIdempotencyKey());
       await loadEvents();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not ingest event");
+      setError(toApiErrorMessage(err, "Could not ingest event"));
     } finally {
       setSaving(false);
     }
@@ -89,7 +93,7 @@ export function EventsManager() {
 
   useEffect(() => {
     void loadEvents();
-  }, []);
+  }, [loadEvents]);
 
   return (
     <div className="grid gap-5 xl:grid-cols-[0.58fr_0.42fr]">
@@ -167,6 +171,11 @@ ${JSON.stringify(payloadPreview, null, 2)}`}</code>
             Last event {health?.last_event_at ? new Date(health.last_event_at).toLocaleString() : "-"}
           </p>
         </div>
+        {loadError ? (
+          <div className="mt-4">
+            <ApiErrorBanner message={loadError} onRetry={loadEvents} retrying={loadingEvents} />
+          </div>
+        ) : null}
         {health ? (
           <>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">

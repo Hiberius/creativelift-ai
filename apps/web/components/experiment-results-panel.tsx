@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExperimentInsight, ExperimentResult, creativeLiftApi } from "@/lib/api-client";
 import { LiftChart } from "./mini-chart";
 import { StatusPill } from "./status-pill";
+import { ApiErrorBanner, DemoDataBadge, toApiErrorMessage } from "./ui/data-source-notice";
 
 const fallbackResult: ExperimentResult = {
   experiment_id: "demo",
@@ -54,6 +55,7 @@ export function ExperimentResultsPanel({ experimentId }: { experimentId: string 
   const [insight, setInsight] = useState<ExperimentInsight>(fallbackInsight);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(true);
 
   const summary = useMemo(
     () => [
@@ -71,40 +73,51 @@ export function ExperimentResultsPanel({ experimentId }: { experimentId: string 
     [result]
   );
 
-  useEffect(() => {
-    async function loadResult() {
-      setLoading(true);
+  const loadResult = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [nextResult, nextInsight] = await Promise.all([
+        creativeLiftApi.getExperimentResults(experimentId),
+        creativeLiftApi.getExperimentInsights(experimentId)
+      ]);
+      setResult(nextResult);
+      setInsight(nextInsight);
+      setIsDemo(false);
       setError(null);
-      try {
-        const [nextResult, nextInsight] = await Promise.all([
-          creativeLiftApi.getExperimentResults(experimentId),
-          creativeLiftApi.getExperimentInsights(experimentId)
-        ]);
-        setResult(nextResult);
-        setInsight(nextInsight);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not load experiment result; showing demo result");
-        setInsight(fallbackInsight);
-      } finally {
-        setLoading(false);
-      }
+    } catch (err) {
+      setResult(fallbackResult);
+      setInsight(fallbackInsight);
+      setIsDemo(true);
+      setError(toApiErrorMessage(err, "Could not reach the API. Showing a demo result."));
+    } finally {
+      setLoading(false);
     }
-    void loadResult();
   }, [experimentId]);
+
+  useEffect(() => {
+    void loadResult();
+  }, [loadResult]);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
       <section className="panel rounded-lg p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold">Experiment result</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-semibold">Experiment result</h2>
+              {isDemo ? <DemoDataBadge /> : null}
+            </div>
             <p className="mt-2 text-slate-400">
               {loading ? "Loading latest result..." : "Decision recommendation and lift diagnostics from the measurement engine."}
             </p>
           </div>
           <StatusPill label={result.recommendation} />
         </div>
-        {error ? <div className="mt-4 rounded-lg border border-yellow-400/30 bg-yellow-400/10 p-4 text-sm text-yellow-100">{error}</div> : null}
+        {error ? (
+          <div className="mt-4">
+            <ApiErrorBanner message={error} onRetry={loadResult} retrying={loading} />
+          </div>
+        ) : null}
         <LiftChart />
       </section>
       <aside className="panel rounded-lg p-6">

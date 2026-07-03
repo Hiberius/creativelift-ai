@@ -1,69 +1,45 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from math import erf, sqrt
 from typing import Any
 from uuid import UUID
+
+from experiment_engine import (
+    VariantStats,
+    compare_conversion,
+    cuped_adjust,
+    sequential_peek,
+    srm_check,
+)
 
 from app.schemas.common import MeasurementAnalysisRead, MeasurementAnalyzeRequest
 from app.schemas.domain import MeasurementSummary, MetricCard
 
+# Statistical primitives come from the standalone experiment-engine service;
+# VariantStats, cuped_adjust and srm_check are re-exported here for callers.
+__all__ = [
+    "VariantStats",
+    "compare_proportions",
+    "cuped_adjust",
+    "sequential_peek",
+    "srm_check",
+    "analyze_observed_variants",
+    "demo_experiment_result",
+    "experiment_result_from_events",
+    "MeasurementService",
+    "measurement_service",
+]
+
 CONVERSION_EVENT_NAMES = {"signup", "lead", "purchase", "revenue", "custom_conversion"}
 
 
-@dataclass(frozen=True)
-class VariantStats:
-    key: str
-    visitors: int
-    conversions: int
-    revenue: float = 0.0
-
-    @property
-    def conversion_rate(self) -> float:
-        return self.conversions / self.visitors if self.visitors else 0.0
-
-    @property
-    def revenue_per_visitor(self) -> float:
-        return self.revenue / self.visitors if self.visitors else 0.0
-
-
-def _normal_cdf(x: float) -> float:
-    return 0.5 * (1 + erf(x / sqrt(2)))
-
-
 def compare_proportions(control: VariantStats, treatment: VariantStats) -> dict[str, float | str]:
-    if control.visitors <= 0 or treatment.visitors <= 0:
-        return {"decision": "needs_more_data"}
-    p1 = control.conversion_rate
-    p2 = treatment.conversion_rate
-    pooled = (control.conversions + treatment.conversions) / (control.visitors + treatment.visitors)
-    standard_error = sqrt(max(pooled * (1 - pooled) * (1 / control.visitors + 1 / treatment.visitors), 1e-12))
-    diff = p2 - p1
-    z_score = diff / standard_error
-    p_value = 2 * (1 - _normal_cdf(abs(z_score)))
-    ci_low = diff - 1.96 * standard_error
-    ci_high = diff + 1.96 * standard_error
-    relative_lift = diff / p1 if p1 else 0.0
-    if p_value < 0.05 and diff > 0:
-        decision = "winner"
-    elif p_value < 0.05 and diff < 0:
-        decision = "loser"
-    else:
-        decision = "inconclusive"
-    return {
-        "control_rate": p1,
-        "treatment_rate": p2,
-        "absolute_lift": diff,
-        "relative_lift": relative_lift,
-        "standard_error": standard_error,
-        "z_score": z_score,
-        "p_value": p_value,
-        "confidence_interval_low": ci_low,
-        "confidence_interval_high": ci_high,
-        "revenue_per_visitor_delta": treatment.revenue_per_visitor - control.revenue_per_visitor,
-        "decision": decision,
-    }
+    """Shim over experiment_engine.compare_conversion.
+
+    Keeps the historical API behavior of analyzing any variant with at least
+    one visitor, while the engine default requires 30 visitors per arm.
+    """
+    return compare_conversion(control, treatment, min_visitors=1)
 
 
 def _pct(value: float) -> str:
@@ -106,6 +82,7 @@ def analyze_observed_variants(payload: MeasurementAnalyzeRequest) -> Measurement
         revenue=payload.treatment.revenue,
     )
     comparison = compare_proportions(control, treatment)
+    sequential = sequential_peek(control, treatment)
     allocation_total = payload.control.allocation + payload.treatment.allocation
     expected_allocation = {
         control.key: payload.control.allocation / allocation_total,
@@ -191,6 +168,7 @@ def analyze_observed_variants(payload: MeasurementAnalyzeRequest) -> Measurement
         comparison=comparison,
         srm=srm,
         sample_size=sample_size,
+        sequential=sequential,
         recommendation=recommendation,
         decision_summary=decision_summary,
         recommended_action=recommended_action,
@@ -212,6 +190,7 @@ def demo_experiment_result(experiment_id: str) -> dict:
         },
         "comparison": comparison,
         "srm": srm,
+        "sequential": sequential_peek(control, treatment),
         "recommendation": recommendation,
     }
 
@@ -287,35 +266,12 @@ def experiment_result_from_events(experiment_id: str, variants: list[Any], event
         },
         "comparison": comparison,
         "srm": srm,
+        "sequential": sequential_peek(
+            variant_stats[control_variant.key],
+            variant_stats[treatment_variant.key],
+        ),
         "recommendation": recommendation,
     }
-
-
-def srm_check(observed: dict[str, int], expected_allocation: dict[str, float]) -> dict[str, float | bool]:
-    total = sum(observed.values())
-    if total == 0:
-        return {"chi_square": 0.0, "p_value": 1.0, "passed": False}
-    chi_square = 0.0
-    for key, allocation in expected_allocation.items():
-        expected = total * allocation
-        if expected > 0:
-            chi_square += (observed.get(key, 0) - expected) ** 2 / expected
-    # df=1 survival approximation; adequate for MVP binary allocation checks.
-    p_value = 1 - erf(sqrt(chi_square / 2))
-    return {"chi_square": chi_square, "p_value": p_value, "passed": p_value >= 0.001}
-
-
-def cuped_adjust(outcome: list[float], pre_experiment_covariate: list[float]) -> list[float]:
-    if len(outcome) != len(pre_experiment_covariate):
-        raise ValueError("outcome and pre_experiment_covariate must have the same length")
-    if not outcome:
-        return []
-    mean_x = sum(pre_experiment_covariate) / len(pre_experiment_covariate)
-    mean_y = sum(outcome) / len(outcome)
-    cov = sum((x - mean_x) * (y - mean_y) for x, y in zip(pre_experiment_covariate, outcome))
-    var = sum((x - mean_x) ** 2 for x in pre_experiment_covariate)
-    theta = cov / var if var else 0.0
-    return [y - theta * (x - mean_x) for y, x in zip(outcome, pre_experiment_covariate)]
 
 
 _SUMMARY_WINDOW_DAYS = {"last_7_days": 7, "last_30_days": 30, "last_90_days": 90}

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCcw } from "lucide-react";
 import { CreativeTreatment, creativeLiftApi } from "@/lib/api-client";
 import { treatments } from "@/lib/site-data";
 import { StatusPill } from "./status-pill";
+import { ApiErrorBanner, DemoDataBadge, toApiErrorMessage } from "./ui/data-source-notice";
 
 function fallbackTreatments(): CreativeTreatment[] {
   return treatments.map((item) => ({
@@ -36,43 +37,54 @@ function fallbackTreatments(): CreativeTreatment[] {
 
 export function CreativesManager() {
   const [items, setItems] = useState<CreativeTreatment[]>(fallbackTreatments());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(true);
 
-  async function loadCreatives() {
+  const loadCreatives = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const nextItems = await creativeLiftApi.listCreativeTreatments();
       setItems(nextItems);
+      setIsDemo(false);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load Creative Treatments; showing demo data");
+      setItems(fallbackTreatments());
+      setIsDemo(true);
+      setError(toApiErrorMessage(err, "Could not reach the API. Showing demo Creative Treatments."));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadCreatives();
-  }, []);
+  }, [loadCreatives]);
 
   return (
     <section className="panel overflow-hidden rounded-lg">
       <div className="flex flex-col gap-4 border-b border-white/10 p-5 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Creative Treatments</h2>
-          <p className="mt-1 text-sm text-slate-400">The measurable registry for AI-generated and human-edited creative variants.</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Creative Treatments</h2>
+            <p className="mt-1 text-sm text-slate-400">The measurable registry for AI-generated and human-edited creative variants.</p>
+          </div>
+          {isDemo ? <DemoDataBadge /> : null}
         </div>
         <button
           className="inline-flex w-fit items-center rounded-md border border-white/15 px-3 py-2 text-sm text-slate-200 hover:border-cyan/50"
           onClick={loadCreatives}
           type="button"
         >
-          <RefreshCcw className="mr-2 h-4 w-4" />
+          <RefreshCcw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
-      {error ? <div className="m-5 rounded-lg border border-yellow-400/30 bg-yellow-400/10 p-4 text-sm text-yellow-100">{error}</div> : null}
+      {error ? (
+        <div className="m-5">
+          <ApiErrorBanner message={error} onRetry={loadCreatives} retrying={loading} />
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] text-left text-sm">
           <thead className="text-xs uppercase text-slate-500">

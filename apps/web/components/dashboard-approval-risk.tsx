@@ -1,31 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, RefreshCcw, X } from "lucide-react";
 import { CreativeTreatment, creativeLiftApi } from "@/lib/api-client";
+import { toApiErrorMessage } from "./ui/data-source-notice";
 
 export function DashboardApprovalRisk() {
   const [treatments, setTreatments] = useState<CreativeTreatment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadTreatments() {
+  const loadTreatments = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       setTreatments(await creativeLiftApi.listCreativeTreatments());
     } catch (err) {
       setTreatments([]);
-      setError(err instanceof Error ? err.message : "Approval data unavailable");
+      setError(toApiErrorMessage(err, "Could not reach the API. Approval data unavailable."));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadTreatments();
-  }, []);
+  }, [loadTreatments]);
 
   const summary = useMemo(() => {
     const counts = treatments.reduce<Record<string, number>>((current, treatment) => {

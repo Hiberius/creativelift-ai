@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowRight, Pause, Play, RefreshCcw, Trophy } from "lucide-react";
 import { creativeLiftApi, Experiment, ExperimentAssignment } from "@/lib/api-client";
 import { experiments } from "@/lib/site-data";
 import { StatusPill } from "./status-pill";
+import { ApiErrorBanner, DemoDataBadge, toApiErrorMessage } from "./ui/data-source-notice";
+import { DetailHeaderSkeleton } from "./ui/skeleton";
 
 function fallbackExperiment(id: string): Experiment {
   const item = experiments.find((experiment) => experiment.id === id) ?? experiments[0];
@@ -32,26 +34,32 @@ function fallbackExperiment(id: string): Experiment {
 }
 
 export function ExperimentDetailPanel({ experimentId }: { experimentId: string }) {
-  const [experiment, setExperiment] = useState<Experiment>(fallbackExperiment(experimentId));
+  const [experiment, setExperiment] = useState<Experiment | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [unitId, setUnitId] = useState("anon_demo_001");
   const [assignment, setAssignment] = useState<ExperimentAssignment | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
 
-  async function loadExperiment() {
+  const loadExperiment = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
-      setExperiment(await creativeLiftApi.getExperiment(experimentId));
+      const next = await creativeLiftApi.getExperiment(experimentId);
+      setExperiment(next);
+      setIsDemo(false);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load experiment; showing demo details");
+      setExperiment(fallbackExperiment(experimentId));
+      setIsDemo(true);
+      setError(toApiErrorMessage(err, "Could not reach the API. Showing demo experiment details."));
     } finally {
       setLoading(false);
     }
-  }
+  }, [experimentId]);
 
   async function transition(status: "start" | "pause" | "complete") {
+    if (!experiment) return;
     setSaving(status);
     setError(null);
     try {
@@ -65,17 +73,30 @@ export function ExperimentDetailPanel({ experimentId }: { experimentId: string }
 
   async function previewAssignment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!experiment) return;
     setError(null);
     try {
       setAssignment(await creativeLiftApi.assignExperimentVariant(experiment.id, unitId));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not assign unit");
+      setError(toApiErrorMessage(err, "Could not assign unit"));
     }
   }
 
   useEffect(() => {
     void loadExperiment();
-  }, [experimentId]);
+  }, [loadExperiment]);
+
+  if (loading && !experiment) {
+    return (
+      <div className="panel rounded-lg p-6">
+        <DetailHeaderSkeleton />
+      </div>
+    );
+  }
+
+  if (!experiment) {
+    return null;
+  }
 
   return (
     <div className="grid gap-5">
@@ -85,6 +106,7 @@ export function ExperimentDetailPanel({ experimentId }: { experimentId: string }
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-semibold">{experiment.name}</h2>
               <StatusPill label={experiment.status} />
+              {isDemo ? <DemoDataBadge /> : null}
             </div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">{loading ? "Loading experiment..." : experiment.hypothesis}</p>
           </div>
@@ -106,7 +128,11 @@ export function ExperimentDetailPanel({ experimentId }: { experimentId: string }
             </button>
           </div>
         </div>
-        {error ? <div className="mt-5 rounded-lg border border-yellow-400/30 bg-yellow-400/10 p-4 text-sm text-yellow-100">{error}</div> : null}
+        {error ? (
+          <div className="mt-5">
+            <ApiErrorBanner message={error} onRetry={loadExperiment} retrying={loading} />
+          </div>
+        ) : null}
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[0.58fr_0.42fr]">

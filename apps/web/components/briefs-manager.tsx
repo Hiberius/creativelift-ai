@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCcw } from "lucide-react";
 import { Brief, creativeLiftApi } from "@/lib/api-client";
+import { ApiErrorBanner, DemoDataBadge, toApiErrorMessage } from "./ui/data-source-notice";
 
 const fallbackBriefs: Brief[] = [
   {
@@ -40,32 +41,39 @@ const fallbackBriefs: Brief[] = [
 
 export function BriefsManager() {
   const [briefs, setBriefs] = useState<Brief[]>(fallbackBriefs);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(true);
 
-  async function loadBriefs() {
+  const loadBriefs = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const nextBriefs = await creativeLiftApi.listBriefs();
       setBriefs(nextBriefs);
+      setIsDemo(false);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load briefs; showing demo data");
+      setBriefs(fallbackBriefs);
+      setIsDemo(true);
+      setError(toApiErrorMessage(err, "Could not reach the API. Showing demo briefs."));
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void loadBriefs();
-  }, []);
+  }, [loadBriefs]);
 
   return (
     <>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Brief registry</h2>
-          <p className="mt-1 text-sm text-slate-400">Plan the objective, audience, KPI, channel, and guardrails before generating variants.</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">Brief registry</h2>
+            <p className="mt-1 text-sm text-slate-400">Plan the objective, audience, KPI, channel, and guardrails before generating variants.</p>
+          </div>
+          {isDemo ? <DemoDataBadge /> : null}
         </div>
         <div className="flex gap-3">
           <button
@@ -73,7 +81,7 @@ export function BriefsManager() {
             onClick={loadBriefs}
             type="button"
           >
-            <RefreshCcw className="mr-2 h-4 w-4" />
+            <RefreshCcw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {loading ? "Refreshing..." : "Refresh"}
           </button>
           <Link className="rounded-md bg-cyan px-4 py-2 text-sm font-semibold text-ink" href="/app/briefs/new">
@@ -83,8 +91,8 @@ export function BriefsManager() {
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-lg border border-yellow-400/30 bg-yellow-400/10 p-4 text-sm text-yellow-100">
-          {error}
+        <div className="mb-4">
+          <ApiErrorBanner message={error} onRetry={loadBriefs} retrying={loading} />
         </div>
       ) : null}
 

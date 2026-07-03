@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import erf, sqrt
+from math import erf, exp, log, sqrt
 
 
 @dataclass(frozen=True)
@@ -28,8 +28,9 @@ def compare_conversion(
     control: VariantStats,
     treatment: VariantStats,
     confidence: float = 0.95,
+    min_visitors: int = 30,
 ) -> dict[str, float | str]:
-    if control.visitors < 30 or treatment.visitors < 30:
+    if control.visitors < min_visitors or treatment.visitors < min_visitors:
         return {"decision": "needs_more_data"}
     p_control = control.conversion_rate
     p_treatment = treatment.conversion_rate
@@ -89,10 +90,60 @@ def cuped_adjust(outcome: list[float], pre_experiment_covariate: list[float]) ->
     return [y - theta * (x - x_mean) for y, x in zip(outcome, pre_experiment_covariate)]
 
 
-def sequential_peek(current_result: dict, spending_plan: str = "placeholder") -> dict:
-    return {
-        "status": "not_implemented",
-        "spending_plan": spending_plan,
-        "message": "Sequential testing boundary scaffold. Add alpha-spending or always-valid inference before production use.",
-        "current_result": current_result,
+def sequential_peek(
+    control: VariantStats,
+    treatment: VariantStats,
+    alpha: float = 0.05,
+    mixture_sd: float = 0.01,
+) -> dict:
+    """Always-valid sequential test for the difference in conversion rates.
+
+    Implements the mixture sequential probability ratio test (mSPRT) with a
+    zero-centered normal mixing distribution N(0, mixture_sd**2) over the
+    treatment-minus-control conversion-rate difference, using the standard
+    normal approximation for two-sample binomial data. The reciprocal of the
+    mixture likelihood ratio is an always-valid p-value: it can be inspected
+    after every new observation ("peeking") while keeping the type I error at
+    or below ``alpha`` uniformly over time.
+
+    Reference: Johari, Koomen, Pekelis & Walsh, "Peeking at A/B Tests: Why It
+    Matters, and What to Do About It", KDD 2017 (normal-mixture mSPRT).
+
+    ``mixture_sd`` is the prior scale of plausible effects on the absolute
+    conversion-rate-difference scale; the default of 0.01 (one percentage
+    point) suits typical conversion experiments.
+    """
+    header = {
+        "method": "msprt_normal_mixture",
+        "alpha": alpha,
+        "mixture_sd": mixture_sd,
+    }
+    if control.visitors <= 0 or treatment.visitors <= 0:
+        return header | {
+            "observed_effect": 0.0,
+            "log_likelihood_ratio": 0.0,
+            "always_valid_p_value": 1.0,
+            "can_stop": False,
+            "decision": "continue",
+            "message": "Both variants need visitors before sequential monitoring can run.",
+        }
+    pooled = (control.conversions + treatment.conversions) / (
+        control.visitors + treatment.visitors
+    )
+    variance = max(pooled * (1 - pooled) * (1 / control.visitors + 1 / treatment.visitors), 1e-12)
+    effect = treatment.conversion_rate - control.conversion_rate
+    tau_squared = mixture_sd**2
+    log_likelihood_ratio = 0.5 * log(variance / (variance + tau_squared)) + (
+        effect**2 * tau_squared / (2 * variance * (variance + tau_squared))
+    )
+    # Work in log space: exp(-llr) underflows to 0.0 for decisive tests
+    # instead of overflowing the direct likelihood ratio.
+    always_valid_p_value = min(1.0, exp(-log_likelihood_ratio))
+    can_stop = always_valid_p_value <= alpha
+    return header | {
+        "observed_effect": effect,
+        "log_likelihood_ratio": log_likelihood_ratio,
+        "always_valid_p_value": always_valid_p_value,
+        "can_stop": can_stop,
+        "decision": "stop" if can_stop else "continue",
     }

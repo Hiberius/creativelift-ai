@@ -69,6 +69,11 @@ This is the honest current state of the MVP.
 - Security headers middleware and demo-console CSP are active on every response.
 - The OpenAI-compatible generator provider performs real chat/completions calls with structured-variant parsing and lineage capture (mock stays the default).
 - The Next.js production build compiles (Next 15 async params fixed) and 7 Playwright E2E journeys pass against the production build plus a live Postgres-backed API (`make e2e`).
+- The API imports its statistics from services/experiment-engine (single source); the router's bandit decisions run through services/bandit-service.
+- Sequential testing is real: always-valid mSPRT (`sequential_peek`), exposed as an additive `sequential` block in `/v1/demo/analyze` and experiment results.
+- `POST /v1/measurement/mmm-runs` and `uplift-runs` compute synchronously via their services with populated outputs and clean failure states.
+- All 7 connector adapters implement `validate_config()`; PostHog implements `pull()` with cursor pagination (tested against mocked transports); `POST /v1/connectors/{id}/sync` ingests via push (any provider) or pull (PostHog) with idempotent replay.
+- The frontend never lies: fallback data is labeled with a "Demo data" badge and API failures show a human-readable banner with Retry; skeleton loaders cover the summary grid and detail panels.
 
 Current lightweight verification:
 
@@ -102,11 +107,10 @@ make migration-smoke  # Alembic roundtrip on disposable Postgres
 - Redis-backed rate limiting.
 - Background workers.
 - ClickHouse event store.
-- Live PostHog/Rudder/Snowplow sync.
+- Scheduled/continuous connector sync (PostHog pull and push-mode sync exist; Rudder/Snowplow live pull and schedulers do not).
 - Live Google Ads and Meta Ads sync.
 - Live HubSpot sync.
 - OpenAI-compatible provider implementation.
-- Sequential testing beyond explicit placeholder.
 - Contextual bandits.
 - EconML/CausalML uplift adapters.
 - PyMC-Marketing/Meridian/Robyn MMM adapters.
