@@ -134,6 +134,22 @@ No. A deterministic mock provider powers the quickstart for free; plug any OpenA
 
 The [implementation status](docs/implementation-status.md) page says plainly what is working, what is demo, and what is scaffold — we'd rather under-promise.
 
+## The skill behind it
+
+The statistics this platform runs on are packaged as an Agent Skill you can use without
+deploying anything:
+
+**[incrementality-testing](https://github.com/Hiberius/incrementality-testing)** — sample
+ratio mismatch, an always-valid sequential test that survives daily peeking, CUPED
+variance reduction, and the geo and holdout designs for channels where you cannot
+randomise users. Standard library only, no SciPy.
+
+```
+npx skills add Hiberius/incrementality-testing
+```
+
+It is one of [ten](https://github.com/Hiberius/hiberius-skills) built the same way.
+
 ## Contributing
 
 Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Good first areas: a new live connector pull, connector scheduling, contextual bandits, dashboard polish.
